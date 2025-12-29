@@ -51,8 +51,15 @@ export default function Home() {
       });
 
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Translation failed");
+        const text = await res.text();
+        let errorMsg = "Translation failed";
+        try {
+          const data = JSON.parse(text);
+          errorMsg = data.error || errorMsg;
+        } catch {
+          errorMsg = text || errorMsg;
+        }
+        throw new Error(errorMsg);
       }
 
       const blob = await res.blob();
@@ -117,10 +124,26 @@ export default function Home() {
             Selected: {file.name} ({(file.size / 1024).toFixed(1)} KB)
           </p>
         )}
-        <p style={{ fontSize: 12, color: "#666" }}>
-          Note: DeepL charges ~1 char per byte for documents. A 100KB PDF ≈ 100k
-          characters.
-        </p>
+        <div
+          style={{
+            fontSize: 12,
+            color: "#666",
+            backgroundColor: "#fff3cd",
+            padding: 12,
+            borderRadius: 4,
+            marginTop: 10,
+          }}
+        >
+          <strong>⚠️ DeepL Document Pricing:</strong>
+          <ul style={{ margin: "8px 0 0 0", paddingLeft: 20 }}>
+            <li>
+              PDF, DOCX, XLSX, PPTX: <strong>50,000 character minimum</strong>{" "}
+              per file
+            </li>
+            <li>Even a 1-page document costs 50k characters</li>
+            <li>Free tier (500k chars) = ~10 documents max</li>
+          </ul>
+        </div>
       </section>
 
       <button
