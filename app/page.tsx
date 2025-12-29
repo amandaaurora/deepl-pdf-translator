@@ -88,6 +88,17 @@ export default function Home() {
 
       <section style={{ marginBottom: 30 }}>
         <h2>1. API Key</h2>
+        <p style={{ fontSize: 13, color: "#666", margin: "0 0 10px 0" }}>
+          Don't have one?{" "}
+          <a
+            href="https://www.deepl.com/en/your-account/keys"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Get your free API key from DeepL
+          </a>{" "}
+          (500k chars/month free)
+        </p>
         <input
           type="text"
           placeholder="Enter DeepL API Key"
