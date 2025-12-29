@@ -12,6 +12,7 @@ export default function Home() {
   const [file, setFile] = useState<File | null>(null);
   const [translating, setTranslating] = useState(false);
   const [error, setError] = useState("");
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   const checkApiKey = async () => {
     setChecking(true);
@@ -157,15 +158,80 @@ export default function Home() {
         </div>
       </section>
 
+      <div style={{ marginTop: 20, marginBottom: 20 }}>
+        <label
+          style={{
+            fontSize: 13,
+            display: "flex",
+            alignItems: "flex-start",
+            gap: 8,
+            cursor: "pointer",
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={agreedToTerms}
+            onChange={(e) => setAgreedToTerms(e.target.checked)}
+            style={{ marginTop: 3 }}
+          />
+          <span>
+            I agree that my documents will be sent to DeepL for translation. I
+            accept the{" "}
+            <a
+              href="https://www.deepl.com/en/pro-license"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              DeepL Terms and Conditions
+            </a>{" "}
+            and understand that this app does not store my API key or documents.
+          </span>
+        </label>
+      </div>
+
       <button
         onClick={translateDocument}
-        disabled={!file || !apiKey || translating}
+        disabled={!file || !apiKey || !agreedToTerms || translating}
         style={{ padding: "15px 30px", fontSize: 16 }}
       >
         {translating ? "Translating..." : "Translate to English (GB)"}
       </button>
 
       {error && <p style={{ color: "red", marginTop: 20 }}>{error}</p>}
+
+      <footer
+        style={{
+          marginTop: 40,
+          paddingTop: 20,
+          borderTop: "1px solid #ddd",
+          fontSize: 12,
+          color: "#666",
+        }}
+      >
+        <p style={{ marginBottom: 8 }}>
+          <strong>Privacy:</strong> Your API key and documents are not stored.
+          Files are sent to DeepL for translation and returned directly to you.
+        </p>
+        <p>
+          This app uses the{" "}
+          <a
+            href="https://www.deepl.com/en/pro-api"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            DeepL API
+          </a>
+          . By using this service, you agree to{" "}
+          <a
+            href="https://www.deepl.com/en/pro-license"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            DeepL's Terms and Conditions
+          </a>
+          .
+        </p>
+      </footer>
     </main>
   );
 }

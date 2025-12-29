@@ -1,6 +1,40 @@
 import { NextRequest, NextResponse } from "next/server";
 
+// Rate limiting
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+const RATE_LIMIT = 10;
+const RATE_WINDOW = 60 * 60 * 1000; // 1 hour
+
+function isRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const record = rateLimitMap.get(ip);
+
+  if (rateLimitMap.size > 10000) rateLimitMap.clear();
+
+  if (!record || now > record.resetTime) {
+    rateLimitMap.set(ip, { count: 1, resetTime: now + RATE_WINDOW });
+    return false;
+  }
+
+  if (record.count >= RATE_LIMIT) return true;
+  record.count++;
+  return false;
+}
+
+// Config
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const ALLOWED_EXTENSIONS = ["pdf", "docx", "pptx", "txt"];
+
 export async function POST(req: NextRequest) {
+  // Rate limit check
+  const ip = req.headers.get("x-forwarded-for") || "unknown";
+  if (isRateLimited(ip)) {
+    return NextResponse.json(
+      { error: "Too many requests. Please try again later." },
+      { status: 429 }
+    );
+  }
+
   const formData = await req.formData();
   const file = formData.get("file") as File;
   const apiKey = formData.get("apiKey") as string;
@@ -8,6 +42,23 @@ export async function POST(req: NextRequest) {
   if (!file || !apiKey) {
     return NextResponse.json(
       { error: "Missing file or API key" },
+      { status: 400 }
+    );
+  }
+
+  // File size check
+  if (file.size > MAX_FILE_SIZE) {
+    return NextResponse.json(
+      { error: "File too large. Maximum size is 10MB." },
+      { status: 400 }
+    );
+  }
+
+  // File extension check
+  const fileExtension = file.name.split(".").pop()?.toLowerCase() || "";
+  if (!ALLOWED_EXTENSIONS.includes(fileExtension)) {
+    return NextResponse.json(
+      { error: `Invalid file type. Allowed: ${ALLOWED_EXTENSIONS.join(", ")}` },
       { status: 400 }
     );
   }
