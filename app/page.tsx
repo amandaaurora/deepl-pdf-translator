@@ -11,6 +11,7 @@ export default function Home() {
   const [checking, setChecking] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [translating, setTranslating] = useState(false);
+  const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [agreedToTerms, setAgreedToTerms] = useState(false);
 
@@ -40,6 +41,7 @@ export default function Home() {
     if (!file || !apiKey) return;
     setTranslating(true);
     setError("");
+    setStatus("Uploading document...");
 
     const formData = new FormData();
     formData.append("file", file);
@@ -63,6 +65,7 @@ export default function Home() {
         throw new Error(errorMsg);
       }
 
+      setStatus("Downloading translated file...");
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -70,8 +73,10 @@ export default function Home() {
       a.download = file.name.replace(".pdf", ".docx");
       a.click();
       URL.revokeObjectURL(url);
+      setStatus("Done!");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Translation failed");
+      setStatus("");
     }
     setTranslating(false);
   };
@@ -92,7 +97,7 @@ export default function Home() {
         <p style={{ fontSize: 13, color: "#666", margin: "0 0 10px 0" }}>
           Don't have one?{" "}
           <a
-            href="https://www.deepl.com/en/your-account/keys"
+            href="https://www.deepl.com/en/pro-api#api-pricing"
             target="_blank"
             rel="noopener noreferrer"
           >
@@ -197,6 +202,7 @@ export default function Home() {
         {translating ? "Translating..." : "Translate to English (GB)"}
       </button>
 
+      {status && <p style={{ color: "#666", marginTop: 15 }}>{status}</p>}
       {error && <p style={{ color: "red", marginTop: 20 }}>{error}</p>}
 
       <footer
@@ -211,6 +217,17 @@ export default function Home() {
         <p style={{ marginBottom: 8 }}>
           <strong>Privacy:</strong> Your API key and documents are not stored.
           Files are sent to DeepL for translation and returned directly to you.
+        </p>
+        <p style={{ marginBottom: 8 }}>
+          <strong>Open Source:</strong> View the code on{" "}
+          <a
+            href="https://github.com/amandaaurora/deepl-pdf-translator"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            GitHub
+          </a>{" "}
+          to see exactly how this works.
         </p>
         <p>
           This app uses the{" "}
