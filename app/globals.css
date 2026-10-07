@@ -1,30 +1,169 @@
 @import "tailwindcss";
 
+@theme {
+  --font-sans: var(--font-inter), "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --color-ink: #111111;
+  --color-ink-soft: #5c5c5c;
+  --color-ink-faint: #9a9a9a;
+  --color-line: #e4e4e2;
+  --color-paper: #f7f7f6;
+  --color-canvas: #f1f1f0;
+  --color-alert: #c2410c;
+  --color-ok: #3f8f5a;
+}
+
 :root {
   color-scheme: light;
 }
 
 body {
-  background: #f5f5f4;
-  color: #1c1917;
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Page background: a faint architectural grid. */
+.blueprint {
+  background-image:
+    linear-gradient(to right, rgb(0 0 0 / 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(0 0 0 / 0.045) 1px, transparent 1px);
+  background-size: 76px 76px;
+  background-position: -1px -1px;
 }
 
 @layer components {
-  .card {
-    @apply mb-6 rounded-xl border border-stone-200 bg-white p-5 shadow-sm;
+  .frame {
+    @apply border border-line bg-white shadow-[0_30px_60px_-30px_rgb(0_0_0/0.12)];
   }
-  .section-title {
-    @apply text-sm font-semibold tracking-wide text-stone-500 uppercase;
+
+  .caption {
+    @apply text-xs font-medium tracking-[0.28em] text-ink-soft uppercase sm:text-sm;
   }
+
+  .brand {
+    @apply text-xs font-semibold tracking-[0.3em] uppercase;
+  }
+
+  /* Tiny tracked labels: "01 / RECOGNITION" */
+  .micro {
+    @apply text-[0.625rem] font-medium tracking-[0.18em] text-ink-faint uppercase;
+  }
+
+  .display {
+    @apply text-[3.25rem] leading-[0.92] font-normal tracking-[-0.03em] uppercase sm:text-7xl lg:text-[5.5rem];
+  }
+
+  .link {
+    @apply transition-colors hover:text-ink disabled:opacity-50;
+  }
+
+  .pill {
+    @apply inline-flex items-center rounded-full border border-ink px-6 py-2.5 text-[0.7rem] font-semibold tracking-[0.18em] uppercase transition-colors hover:bg-ink hover:text-white disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-ink;
+  }
+  .pill-solid {
+    @apply bg-ink text-white hover:bg-white hover:text-ink disabled:hover:bg-ink disabled:hover:text-white;
+  }
+
   .field {
-    @apply flex flex-col gap-1 text-sm;
-  }
-  .field > span {
-    @apply text-stone-500;
+    @apply flex flex-col gap-2;
   }
   .field select,
   .field input {
-    @apply rounded-lg border border-stone-300 bg-white px-3 py-2 text-base text-stone-900 disabled:bg-stone-100 disabled:text-stone-500;
+    @apply w-full appearance-none rounded-none border-0 border-b border-ink/25 bg-transparent py-2 text-base text-ink outline-none focus:border-ink disabled:text-ink-faint;
   }
+  .field select {
+    background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
+      linear-gradient(135deg, currentColor 50%, transparent 50%);
+    background-position: calc(100% - 9px) 55%, calc(100% - 5px) 55%;
+    background-size: 4px 4px;
+    background-repeat: no-repeat;
+    padding-right: 1.25rem;
+  }
+
+  .keycell-on {
+    @apply bg-paper;
+    box-shadow: inset 0 2px 0 var(--color-ink);
+  }
+}
+
+/* The "figure": a soft gradient of light behind a fine grid. */
+.figure {
+  --a: #f7e3a1;
+  --b: #b9d4f1;
+  --c: #fbfaf6;
+  overflow: hidden;
+  background:
+    radial-gradient(55% 65% at 25% 28%, var(--a) 0%, transparent 72%),
+    radial-gradient(70% 80% at 72% 68%, var(--b) 0%, transparent 72%),
+    var(--c);
+  background-size: 120% 120%;
+  background-position: 0% 0%;
+}
+.figure::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, rgb(0 0 0 / 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(0 0 0 / 0.06) 1px, transparent 1px);
+  background-size: 32px 32px;
+  pointer-events: none;
+}
+.figure-drag {
+  --a: #f5d36b;
+  --b: #8fbbec;
+}
+.figure-busy {
+  animation: drift 6s ease-in-out infinite alternate;
+}
+.figure-done {
+  --a: #d9ecd2;
+  --b: #b9d4f1;
+}
+.figure-error {
+  --a: #f6a68f;
+  --b: #f8df8a;
+}
+@keyframes drift {
+  to {
+    background-position: 100% 100%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .figure-busy {
+    animation: none;
+  }
+}
+
+.crosshair {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  transform: translate(-50%, -50%);
+  background:
+    linear-gradient(var(--color-ink-soft), var(--color-ink-soft)) center / 1px 100% no-repeat,
+    linear-gradient(var(--color-ink-soft), var(--color-ink-soft)) center / 100% 1px no-repeat;
+  opacity: 0.7;
+}
+
+.corner {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border-color: var(--color-ink-soft);
+}
+.corner-tl {
+  top: 12px;
+  left: 12px;
+  border-top-width: 1px;
+  border-left-width: 1px;
+}
+.corner-br {
+  right: 12px;
+  bottom: 12px;
+  border-right-width: 1px;
+  border-bottom-width: 1px;
 }

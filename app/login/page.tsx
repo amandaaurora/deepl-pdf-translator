@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Shell } from "@/components/Shell";
 
 export default function LoginPage() {
   const [password, setPassword] = useState("");
@@ -27,28 +28,44 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-sm items-center px-4">
-      <form onSubmit={submit} className="card w-full">
-        <h1 className="mb-4 text-xl font-semibold">DeepL Translator</h1>
-        <label className="field">
-          <span>Password</span>
-          <input
-            type="password"
-            autoFocus
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </label>
-        {error && <p className="mt-3 text-sm text-red-700">{error}</p>}
-        <button
-          type="submit"
-          disabled={!password || busy}
-          className="mt-4 w-full rounded-lg bg-stone-900 px-4 py-2.5 font-medium text-white hover:bg-stone-700 disabled:opacity-40"
+    <Shell>
+      <div className="grid md:grid-cols-2">
+        <form
+          onSubmit={submit}
+          className="flex flex-col justify-between gap-10 px-5 py-8 md:border-r md:border-line md:px-6 md:py-10"
         >
-          {busy ? "Signing in…" : "Sign in"}
-        </button>
-      </form>
-    </main>
+          <div>
+            <p className="micro">[ 00 ] Entrance</p>
+            <h1 className="display mt-6">
+              Private
+              <br />
+              access.
+            </h1>
+          </div>
+          <div>
+            <label className="field">
+              <span className="micro">01 / Password</span>
+              <input
+                type="password"
+                autoFocus
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </label>
+            {error && <p className="mt-3 text-sm text-alert">{error}</p>}
+            <button type="submit" disabled={!password || busy} className="pill pill-solid mt-6">
+              {busy ? "Signing in" : "Enter →"}
+            </button>
+          </div>
+        </form>
+        <div className="figure figure-idle relative min-h-64 border-t border-line md:border-t-0" aria-hidden>
+          <span className="crosshair" />
+          <span className="corner corner-tl" />
+          <span className="corner corner-br" />
+          <p className="micro absolute bottom-4 left-4 text-ink md:left-5">Fig 00. Study of a closed door</p>
+        </div>
+      </div>
+    </Shell>
   );
 }

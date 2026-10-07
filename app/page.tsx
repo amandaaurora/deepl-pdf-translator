@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyInfo, StatusResponse } from "@/lib/types";
+import { Shell } from "@/components/Shell";
 import type { PdfAnalysis, PlannedChunk } from "@/lib/client/pdf";
 import {
   DEEPL_LIMITS,
@@ -68,6 +69,7 @@ function fmt(n: number) {
 }
 
 function mb(bytes: number) {
+  if (bytes < 1e6) return `${Math.max(1, Math.round(bytes / 1e3))} KB`;
   return `${(bytes / 1e6).toFixed(1)} MB`;
 }
 
@@ -344,61 +346,38 @@ export default function Home() {
   const shortOfQuota = assignment.some((a) => !a.enough);
   const keyLabel = (index: number) => keys.find((k) => k.index === index)?.label ?? `Key ${index}`;
 
+  const figState = running ? "busy" : runError || planError ? "error" : finalFile ? "done" : "idle";
+  const choiceCells: { choice: KeyChoice; title: string; key?: KeyInfo }[] = [
+    ...(keys.length > 1 ? [{ choice: "auto" as KeyChoice, title: "Automatic" }] : []),
+    ...keys.map((k) => ({ choice: k.index as KeyChoice, title: k.label, key: k })),
+  ];
+  const isChosen = (c: KeyChoice) => effectiveChoice === c || (keys.length === 1 && c !== "auto");
+
   return (
-    <main className="mx-auto max-w-2xl px-4 py-10">
-      <header className="mb-8 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">DeepL Translator</h1>
-        <button onClick={signOut} className="text-sm text-stone-500 hover:text-stone-800">
-          Sign out
-        </button>
-      </header>
-
-      {/* Keys */}
-      <section className="card">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="section-title">API keys</h2>
-          <button
-            onClick={loadStatus}
-            disabled={refreshing}
-            className="text-sm text-stone-500 hover:text-stone-800 disabled:opacity-50"
-          >
-            {refreshing ? "Refreshing…" : "Refresh"}
-          </button>
-        </div>
-        {statusError && <p className="text-sm text-red-700">{statusError}</p>}
-        {status && keys.length === 0 && (
-          <p className="text-sm text-red-700">
-            No keys configured. Add DEEPL_API_KEY_1 (and DEEPL_API_KEY_2) in Vercel&apos;s
-            environment variables.
+    <Shell onSignOut={signOut}>
+      {/* Hero: intro on the left, the drop zone as a "figure" on the right */}
+      <div className="grid border-b border-line md:grid-cols-2">
+        <div className="flex flex-col justify-between gap-8 px-5 py-8 md:border-r md:border-line md:px-6 md:py-10">
+          <div>
+            <p className="micro">[ 01 ] Translate</p>
+            <h1 className="display mt-6">
+              Alih
+              <br />
+              bahasa.
+            </h1>
+          </div>
+          <p className="max-w-sm text-sm leading-relaxed text-ink-soft">
+            Documents in, translations out. PDFs too large for DeepL are split, translated and
+            bound back into a single file.
           </p>
-        )}
-        <div className="space-y-2">
-          {keys.length > 1 && (
-            <KeyOption
-              checked={effectiveChoice === "auto"}
-              onSelect={() => setKeyChoice("auto")}
-              title="Automatic"
-              subtitle="Use whichever key has the most quota left"
-            />
-          )}
-          {keys.map((k) => (
-            <KeyOption
-              key={k.index}
-              checked={effectiveChoice === k.index || (keys.length === 1 && !k.error)}
-              onSelect={() => setKeyChoice(k.index)}
-              title={k.label}
-              badge={k.plan === "free" ? "Free" : "Pro"}
-              usage={k}
-            />
-          ))}
         </div>
-      </section>
 
-      {/* File */}
-      <section className="card">
-        <h2 className="section-title mb-3">Document</h2>
         <div
-          onClick={() => fileInput.current?.click()}
+          role="button"
+          tabIndex={0}
+          aria-label="Choose a document"
+          onClick={() => !running && fileInput.current?.click()}
+          onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && fileInput.current?.click()}
           onDragOver={(e) => {
             e.preventDefault();
             setDragging(true);
@@ -408,28 +387,32 @@ export default function Home() {
             e.preventDefault();
             setDragging(false);
             const f = e.dataTransfer.files?.[0];
-            if (f) chooseFile(f);
+            if (f && !running) chooseFile(f);
           }}
-          className={`cursor-pointer rounded-lg border-2 border-dashed px-4 py-8 text-center transition ${
-            dragging ? "border-blue-500 bg-blue-50" : "border-stone-300 hover:border-stone-400"
-          }`}
+          className={`figure figure-${figState} ${dragging ? "figure-drag" : ""} group relative min-h-72 cursor-pointer border-t border-line md:border-t-0`}
         >
-          {file ? (
-            <>
-              <p className="font-medium break-all">{file.name}</p>
-              <p className="mt-1 text-sm text-stone-500">
-                {mb(file.size)}
-                {analysis &&
-                  ` · ${analysis.pageCount} pages · about ${fmt(analysis.totalChars)} characters`}
-              </p>
-            </>
-          ) : (
-            <p className="text-stone-500">
-              Drop a file here or <span className="text-blue-700 underline">choose one</span>
-              <br />
-              <span className="text-xs">PDF, Word, PowerPoint, Excel or text</span>
+          <span className="crosshair" aria-hidden />
+          <span className="corner corner-tl" aria-hidden />
+          <span className="corner corner-br" aria-hidden />
+          <div className="absolute inset-x-4 bottom-4 md:inset-x-5">
+            <p className="micro text-ink">
+              Fig 01.{" "}
+              {file ? (running ? "In translation" : finalFile ? "Translated" : "Document") : "Drop a document"}
             </p>
-          )}
+            {file ? (
+              <>
+                <p className="mt-1 text-base break-all text-ink">{file.name}</p>
+                <p className="mt-0.5 text-xs text-ink-soft">
+                  {mb(file.size)}
+                  {analysis && ` · ${analysis.pageCount} page${analysis.pageCount === 1 ? "" : "s"} · ~${fmt(analysis.totalChars)} characters`}
+                </p>
+              </>
+            ) : (
+              <p className="mt-1 text-xs text-ink-soft">
+                or click to choose · PDF, Word, PowerPoint, Excel, text
+              </p>
+            )}
+          </div>
           <input
             ref={fileInput}
             type="file"
@@ -438,172 +421,226 @@ export default function Home() {
             onChange={(e) => chooseFile(e.target.files?.[0] ?? null)}
           />
         </div>
+      </div>
 
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          <label className="field">
-            <span>From</span>
-            <select value={sourceLang} onChange={(e) => setSourceLang(e.target.value)}>
-              {SOURCE_LANGS.map(([v, l]) => (
-                <option key={v} value={v}>
-                  {l}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field">
-            <span>To</span>
-            <select value={targetLang} onChange={(e) => setTargetLang(e.target.value)}>
-              {TARGET_LANGS.map(([v, l]) => (
-                <option key={v} value={v}>
-                  {l}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field">
-            <span>Save as</span>
-            <select
-              value={isPdf || !file ? outputFormat : extension}
-              disabled={!!file && !isPdf}
-              onChange={(e) => setOutputFormat(e.target.value)}
-            >
-              {file && !isPdf ? (
-                <option value={extension}>.{extension}</option>
-              ) : (
-                <>
-                  <option value="docx">Word (.docx)</option>
-                  <option value="pdf">PDF</option>
-                </>
-              )}
-            </select>
-          </label>
+      {/* Keys as a row of index cells */}
+      <div className="border-b border-line">
+        <div className="flex items-center justify-between px-5 pt-5 md:px-6">
+          <p className="micro">Index_02 · API keys</p>
+          <button onClick={loadStatus} disabled={refreshing} className="micro link">
+            {refreshing ? "Refreshing" : "Refresh ↻"}
+          </button>
         </div>
+        {statusError && <p className="px-5 pt-3 text-sm text-alert md:px-6">{statusError}</p>}
+        {status && keys.length === 0 && (
+          <p className="px-5 pt-3 text-sm text-alert md:px-6">
+            No keys configured. Add DEEPL_API_KEY_1 (and DEEPL_API_KEY_2) in Vercel&apos;s
+            environment variables.
+          </p>
+        )}
+        <div className="mt-4 grid border-t border-line sm:grid-cols-2 lg:grid-cols-3">
+          {choiceCells.map((c, i) => (
+            <KeyCell
+              key={String(c.choice)}
+              n={i}
+              title={c.title}
+              usage={c.key}
+              checked={isChosen(c.choice)}
+              onSelect={() => setKeyChoice(c.choice)}
+            />
+          ))}
+        </div>
+      </div>
 
-        {/* Plan */}
-        {file && (
-          <div className="mt-4 rounded-lg bg-stone-100 p-4 text-sm">
-            {planError ? (
-              <p className="text-red-700">{planError}</p>
-            ) : !plan ? (
-              <p className="text-stone-500">{planning || "Checking…"}</p>
+      {/* Settings */}
+      <div className="grid border-b border-line sm:grid-cols-3">
+        <Field n="03" label="From">
+          <select value={sourceLang} onChange={(e) => setSourceLang(e.target.value)}>
+            {SOURCE_LANGS.map(([v, l]) => (
+              <option key={v} value={v}>
+                {l}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field n="04" label="To">
+          <select value={targetLang} onChange={(e) => setTargetLang(e.target.value)}>
+            {TARGET_LANGS.map(([v, l]) => (
+              <option key={v} value={v}>
+                {l}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field n="05" label="Save as" last>
+          <select
+            value={isPdf || !file ? outputFormat : extension}
+            disabled={!!file && !isPdf}
+            onChange={(e) => setOutputFormat(e.target.value)}
+          >
+            {file && !isPdf ? (
+              <option value={extension}>.{extension}</option>
             ) : (
               <>
-                {plan.chunks.length > 1 ? (
-                  <p>
-                    Too big for DeepL in one go, so it&apos;ll be sent as{" "}
-                    <strong>{plan.chunks.length} parts</strong> and joined back together afterwards:
-                  </p>
-                ) : (
-                  <p>Sent to DeepL as a single file.</p>
-                )}
-                <ul className="mt-2 space-y-1">
-                  {plan.chunks.map((c, i) => (
-                    <li key={i} className="flex justify-between gap-2">
-                      <span>
-                        {plan.chunks.length > 1 && `Pages ${c.firstPage}–${c.lastPage} · `}
-                        {mb(c.bytes)}
-                        {assignment[i] && keys.length > 1 && ` · ${keyLabel(assignment[i].keyIndex)}`}
-                      </span>
-                      <span className="text-stone-500">~{fmt(plan.costs[i])} chars billed</span>
-                    </li>
-                  ))}
-                </ul>
-                <p className="mt-2 border-t border-stone-300 pt-2">
-                  Estimated cost: <strong>{fmt(totalCost)} characters</strong>
-                  {extension !== "txt" && (
-                    <span className="text-stone-500">
-                      {" "}
-                      (DeepL charges at least {fmt(50_000)} per file
-                      {isPdf && analysis?.totalChars === 0 && "; this PDF looks scanned, so the real count may be higher"})
-                    </span>
-                  )}
-                </p>
-                {shortOfQuota && (
-                  <p className="mt-2 text-amber-800">
-                    ⚠ That may be more than the quota left on{" "}
-                    {effectiveChoice === "auto" ? "your keys" : "this key"}.
-                  </p>
-                )}
+                <option value="docx">Word (.docx)</option>
+                <option value="pdf">PDF</option>
               </>
             )}
-          </div>
-        )}
+          </select>
+        </Field>
+      </div>
 
+      {/* Estimate */}
+      {file && (
+        <div className="border-b border-line px-5 py-6 md:px-6">
+          <p className="micro">Index_03 · Estimate</p>
+          {planError ? (
+            <p className="mt-3 text-sm text-alert">{planError}</p>
+          ) : !plan ? (
+            <p className="mt-3 text-sm text-ink-soft">{planning || "Checking…"}</p>
+          ) : (
+            <>
+              <h2 className="mt-2 text-2xl font-normal tracking-tight">
+                {plan.chunks.length > 1 ? `${plan.chunks.length} parts, bound as one.` : "A single file."}
+              </h2>
+              <ul className="mt-4 border-t border-line text-sm">
+                {plan.chunks.map((c, i) => (
+                  <li key={i} className="flex flex-wrap justify-between gap-x-4 gap-y-1 border-b border-line py-2.5">
+                    <span>
+                      <span className="micro mr-3">{String(i + 1).padStart(2, "0")}</span>
+                      {plan.chunks.length > 1 && `Pages ${c.firstPage}–${c.lastPage} · `}
+                      {mb(c.bytes)}
+                      {assignment[i] && keys.length > 1 && (
+                        <span className="text-ink-soft"> · {keyLabel(assignment[i].keyIndex)}</span>
+                      )}
+                    </span>
+                    <span className="text-ink-soft tabular-nums">~{fmt(plan.costs[i])} chars</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-3 flex flex-wrap items-baseline justify-between gap-2">
+                <span className="micro">
+                  Total
+                  {extension !== "txt" && " · DeepL bills ≥ 50,000 per file"}
+                </span>
+                <span className="text-lg tabular-nums">{fmt(totalCost)} characters</span>
+              </div>
+              {isPdf && analysis?.totalChars === 0 && (
+                <p className="mt-2 text-xs text-ink-soft">
+                  This PDF looks scanned, so the real count may be higher.
+                </p>
+              )}
+              {shortOfQuota && (
+                <p className="mt-3 text-sm text-alert">
+                  ⚠ That may be more than the quota left on{" "}
+                  {effectiveChoice === "auto" ? "your keys" : "this key"}.
+                </p>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Action */}
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-line px-5 py-6 md:px-6">
+        <p className="micro">
+          {running ? "Working…" : plan ? "Ready" : file ? "Preparing" : "Awaiting document"}
+        </p>
         <button
           onClick={translate}
           disabled={!plan || running || keys.length === 0}
-          className="mt-4 w-full rounded-lg bg-stone-900 px-4 py-3 font-medium text-white transition hover:bg-stone-700 disabled:cursor-not-allowed disabled:opacity-40"
+          className="pill pill-solid"
         >
-          {running ? "Translating…" : "Translate"}
+          {running ? "Translating" : "Translate →"}
         </button>
-      </section>
+      </div>
 
       {/* Progress */}
       {parts.length > 0 && (
-        <section className="card">
-          <h2 className="section-title mb-3">Progress</h2>
-          <ul className="space-y-2 text-sm">
+        <div className="border-b border-line px-5 py-6 md:px-6">
+          <p className="micro">Index_04 · Progress</p>
+          <ul className="mt-4 border-t border-line text-sm">
             {parts.map((p, i) => (
-              <li key={i} className="flex flex-wrap items-baseline justify-between gap-x-3">
-                <span>{p.label}</span>
-                <span className={p.error ? "text-red-700" : p.done ? "text-green-700" : "text-stone-500"}>
+              <li key={i} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-line py-2.5">
+                <span>
+                  <span className="micro mr-3">{String(i + 1).padStart(2, "0")}</span>
+                  {p.label}
+                </span>
+                <span className={p.error ? "text-alert" : p.done ? "text-ink" : "text-ink-soft"}>
+                  {p.done && <span className="mr-1.5 inline-block size-1.5 rounded-full bg-ok align-middle" />}
                   {p.state}
-                  {p.billed !== undefined && ` · ${fmt(p.billed)} chars billed`}
+                  {p.billed !== undefined && ` · ${fmt(p.billed)} chars`}
                   {p.result && parts.length > 1 && (
-                    <>
-                      {" · "}
-                      <button
-                        className="underline"
-                        onClick={() =>
-                          saveFile(p.result!, `${baseName}_translated_part${i + 1}of${parts.length}.${outExt}`)
-                        }
-                      >
-                        download
-                      </button>
-                    </>
+                    <button
+                      className="link ml-3"
+                      onClick={() =>
+                        saveFile(p.result!, `${baseName}_translated_part${i + 1}of${parts.length}.${outExt}`)
+                      }
+                    >
+                      ↓ part
+                    </button>
                   )}
                 </span>
-                {p.error && <span className="w-full text-red-700">{p.error}</span>}
+                {p.error && <span className="w-full text-alert">{p.error}</span>}
               </li>
             ))}
           </ul>
-          {runError && <p className="mt-3 text-sm text-red-700">{runError}</p>}
+          {runError && <p className="mt-3 text-sm text-alert">{runError}</p>}
           {finalFile && (
-            <button
-              onClick={() => saveFile(finalFile.blob, finalFile.name)}
-              className="mt-4 w-full rounded-lg border border-stone-900 px-4 py-2 font-medium hover:bg-stone-100"
-            >
-              Download {finalFile.name} again
+            <button onClick={() => saveFile(finalFile.blob, finalFile.name)} className="pill mt-5 tracking-normal normal-case">
+              ↓ {finalFile.name}
             </button>
           )}
-        </section>
+        </div>
       )}
-    </main>
+    </Shell>
   );
 }
 
-function KeyOption({
+function Field({
+  n,
+  label,
+  last,
+  children,
+}: {
+  n: string;
+  label: string;
+  last?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <label
+      className={`field px-5 py-5 md:px-6 ${last ? "" : "border-b border-line sm:border-r sm:border-b-0"}`}
+    >
+      <span className="micro">
+        {n} / {label}
+      </span>
+      {children}
+    </label>
+  );
+}
+
+function KeyCell({
+  n,
+  title,
+  usage,
   checked,
   onSelect,
-  title,
-  subtitle,
-  badge,
-  usage,
 }: {
+  n: number;
+  title: string;
+  usage?: KeyInfo;
   checked: boolean;
   onSelect: () => void;
-  title: string;
-  subtitle?: string;
-  badge?: string;
-  usage?: KeyInfo;
 }) {
   const disabled = !!usage?.error;
   const pct = usage?.limit ? Math.min(100, ((usage.used ?? 0) / usage.limit) * 100) : 0;
+  const tag = usage ? (usage.plan === "free" ? "Free" : "Pro") : "Mode";
   return (
     <label
-      className={`flex cursor-pointer gap-3 rounded-lg border p-3 transition ${
-        checked ? "border-stone-900 bg-stone-50" : "border-stone-200 hover:border-stone-300"
-      } ${disabled ? "cursor-not-allowed opacity-60" : ""}`}
+      className={`keycell relative block cursor-pointer border-b border-line px-5 py-5 transition-colors sm:border-r md:px-6 ${
+        checked ? "keycell-on" : "hover:bg-paper"
+      } ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
     >
       <input
         type="radio"
@@ -611,31 +648,28 @@ function KeyOption({
         checked={checked}
         disabled={disabled}
         onChange={onSelect}
-        className="mt-1"
+        className="sr-only"
       />
-      <div className="flex-1">
-        <div className="flex items-center gap-2">
-          <span className="font-medium">{title}</span>
-          {badge && (
-            <span className="rounded bg-stone-200 px-1.5 py-0.5 text-xs text-stone-600">{badge}</span>
-          )}
-        </div>
-        {subtitle && <p className="text-sm text-stone-500">{subtitle}</p>}
-        {usage?.error && <p className="text-sm text-red-700">{usage.error}</p>}
-        {usage && !usage.error && usage.limit !== null && (
-          <>
-            <div className="mt-2 h-1.5 overflow-hidden rounded bg-stone-200">
-              <div
-                className={`h-full ${pct > 90 ? "bg-red-600" : pct > 70 ? "bg-amber-500" : "bg-green-600"}`}
-                style={{ width: `${pct}%` }}
-              />
-            </div>
-            <p className="mt-1 text-xs text-stone-500">
-              {fmt(remaining(usage))} characters left of {fmt(usage.limit)}
-            </p>
-          </>
-        )}
-      </div>
+      <span className="micro">
+        {String(n).padStart(2, "0")} / {tag}
+        {checked && " · selected"}
+      </span>
+      <span className="mt-1.5 block text-base">{title}</span>
+      {!usage && <span className="mt-1 block text-xs text-ink-soft">Most quota left goes first</span>}
+      {usage?.error && <span className="mt-1 block text-xs text-alert">{usage.error}</span>}
+      {usage && !usage.error && usage.limit !== null && (
+        <>
+          <span className="mt-3 block h-px bg-line">
+            <span
+              className={`block h-px ${pct > 90 ? "bg-alert" : "bg-ink"}`}
+              style={{ width: `${pct}%` }}
+            />
+          </span>
+          <span className="mt-2 block text-xs text-ink-soft tabular-nums">
+            {fmt(remaining(usage))} left of {fmt(usage.limit)}
+          </span>
+        </>
+      )}
     </label>
   );
 }
