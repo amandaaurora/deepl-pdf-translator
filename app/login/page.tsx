@@ -32,7 +32,15 @@ export default function LoginPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ password }),
     }).catch(() => null);
-    if (res?.ok) return goNext();
+    if (res?.ok) {
+      // Lets the main page offer to set up a passkey on this device.
+      try {
+        sessionStorage.setItem("offerPasskey", "1");
+      } catch {
+        // ignore
+      }
+      return goNext();
+    }
     const data = await res?.json().catch(() => null);
     setError(data?.error || "Couldn't sign in");
     setBusy("");

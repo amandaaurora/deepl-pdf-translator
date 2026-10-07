@@ -51,7 +51,7 @@ body {
   }
 
   .display {
-    @apply text-[3.25rem] leading-[0.92] font-normal tracking-[-0.03em] uppercase sm:text-7xl lg:text-[5.5rem];
+    @apply text-[3.25rem] leading-[0.92] font-normal tracking-[-0.03em] uppercase md:text-[clamp(3rem,6vw,4.75rem)];
   }
 
   .link {

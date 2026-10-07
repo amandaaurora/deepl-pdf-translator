@@ -49,7 +49,7 @@ export function PasskeyPanel() {
   return (
     <div className="border-b border-line px-5 py-6 md:px-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="micro">Index_05 · Passkeys</p>
+        <p className="micro">Passkeys</p>
         {supported && (
           <button onClick={add} disabled={busy} className="pill">
             {busy ? "Waiting for your device" : "+ Add this device"}
