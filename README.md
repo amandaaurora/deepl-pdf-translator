@@ -1,36 +1,44 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# DeepL Translator
 
-## Getting Started
+A private, password-protected site for translating documents with DeepL.
 
-First, run the development server:
+- **One shared password**, no accounts. The login lasts 30 days on each device.
+- **Your DeepL keys stay on the server** (in environment variables). The page shows how much quota each key has left and, on "Automatic", sends each file to whichever key has the most.
+- **Force the source language** (e.g. French) or let DeepL detect it, choose the target language, and save PDFs as Word or PDF.
+- **Large PDFs are split automatically** into the fewest parts DeepL will accept, translated, and joined back into a single file. Because DeepL bills every PDF at a minimum of 50,000 characters, the page shows the estimated cost before you start.
+
+## Setting it up on Vercel
+
+1. **Import the repo** at [vercel.com/new](https://vercel.com/new) (or open your existing project).
+2. **Add environment variables** under *Settings → Environment Variables*:
+
+   | Name | Value |
+   |---|---|
+   | `SITE_PASSWORD` | The password you'll type to get in. Make it long. |
+   | `SESSION_SECRET` | Any long random string (a password manager can generate one). |
+   | `DEEPL_API_KEY_1` | Your first DeepL key |
+   | `DEEPL_API_KEY_2` | Your second DeepL key |
+   | `DEEPL_API_KEY_1_LABEL`, `DEEPL_API_KEY_2_LABEL` | Optional names shown on the page |
+
+3. **Create a Blob store** under *Storage → Create → Blob*, choose **Private** access, and connect it to this project. This sets `BLOB_READ_WRITE_TOKEN` for you.
+   Vercel limits uploads to its servers to 4.5 MB, so large files go to this store first, are passed to DeepL and are deleted straight away. Without it the site still works, but PDFs are split into parts of under 4 MB each, which can mean more parts and so more of the 50,000-character minimums.
+4. **Redeploy** (*Deployments → ⋯ → Redeploy*) so the new variables take effect.
+
+If `SITE_PASSWORD` or `SESSION_SECRET` is missing, the site refuses all access rather than being left open.
+
+## Running it locally
 
 ```bash
+cp .env.example .env.local   # then fill it in
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000). Locally there's no 4.5 MB limit, so the Blob store isn't needed.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## How splitting works
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. The browser reads the PDF (with pdf.js) to count characters per page.
+2. If the file is over the limit for the key in use (Free: 10 MB / 500,000 characters, Pro: 30 MB / 1,000,000 characters), it's divided into consecutive page ranges, starting with as few parts as possible and adding one at a time until every part fits.
+3. Each part is translated separately (in parallel). The results are joined in the browser: Word files keep their images, headers, lists, styles and footnotes; PDFs are concatenated.
+4. If joining fails, each translated part can still be downloaded on its own.

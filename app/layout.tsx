@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
+import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "DeepL PDF Translator",
+  title: "DeepL Translator",
   description: "Translate PDF for Mbak Nikin",
   icons: {
     icon: "/favicon.ico",
   },
+  robots: { index: false, follow: false },
 };
 
 export default function RootLayout({
@@ -14,8 +16,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body style={{ margin: 0, backgroundColor: "#fafafa" }}>{children}</body>
+    <html lang="en-GB">
+      <body>{children}</body>
     </html>
   );
 }

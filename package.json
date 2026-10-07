@@ -9,7 +9,11 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@vercel/blob": "^2.8.1",
+    "jszip": "^3.10.2",
     "next": "16.1.1",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^6.4.299",
     "react": "19.2.3",
     "react-dom": "19.2.3"
   },
