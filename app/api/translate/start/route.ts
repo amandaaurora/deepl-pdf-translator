@@ -12,6 +12,19 @@ const OUTPUT_FORMATS = ["docx", "pdf"];
 // the browser needs to poll for and download the result.
 export async function POST(req: NextRequest) {
   const form = await req.formData();
+  const blobUrl = form.get("blobUrl");
+  try {
+    return await translate(form, typeof blobUrl === "string" ? blobUrl : "");
+  } finally {
+    // The copy in Blob storage is only needed until DeepL has it, and must
+    // go even if the request is rejected.
+    if (typeof blobUrl === "string" && blobUrl) {
+      await del(blobUrl).catch(() => {});
+    }
+  }
+}
+
+async function translate(form: FormData, blobUrl: string) {
   const key = getKey(form.get("keyIndex"));
   if (!key) {
     return NextResponse.json({ error: "Unknown API key" }, { status: 400 });
@@ -26,27 +39,19 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const blobUrl = form.get("blobUrl");
   let file: Blob;
-  try {
-    if (typeof blobUrl === "string" && blobUrl) {
-      const blob = await get(blobUrl, { access: "private", useCache: false });
-      if (!blob || blob.statusCode !== 200) {
-        return NextResponse.json({ error: "Uploaded file not found" }, { status: 400 });
-      }
-      file = await new Response(blob.stream).blob();
-    } else {
-      const uploaded = form.get("file");
-      if (!(uploaded instanceof Blob)) {
-        return NextResponse.json({ error: "Missing file" }, { status: 400 });
-      }
-      file = uploaded;
+  if (blobUrl) {
+    const blob = await get(blobUrl, { access: "private", useCache: false });
+    if (!blob || blob.statusCode !== 200) {
+      return NextResponse.json({ error: "Uploaded file not found" }, { status: 400 });
     }
-  } finally {
-    // The copy in Blob storage is only needed until DeepL has it.
-    if (typeof blobUrl === "string" && blobUrl) {
-      await del(blobUrl).catch(() => {});
+    file = await new Response(blob.stream).blob();
+  } else {
+    const uploaded = form.get("file");
+    if (!(uploaded instanceof Blob)) {
+      return NextResponse.json({ error: "Missing file" }, { status: 400 });
     }
+    file = uploaded;
   }
 
   const upload = new FormData();

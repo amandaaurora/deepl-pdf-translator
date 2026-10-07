@@ -68,6 +68,7 @@ function fmt(n: number) {
 }
 
 function mb(bytes: number) {
+  if (bytes < 1e6) return `${Math.max(1, Math.round(bytes / 1e3))} KB`;
   return `${(bytes / 1e6).toFixed(1)} MB`;
 }
 
