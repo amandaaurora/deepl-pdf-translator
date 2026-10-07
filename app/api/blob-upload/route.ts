@@ -10,7 +10,12 @@ export async function POST(req: NextRequest) {
     const result = await handleUpload({
       body,
       request: req,
-      onBeforeGenerateToken: async () => ({
+      onBeforeGenerateToken: async (pathname) => {
+        // Uploads may only go in uploads/, never over anything else in the store.
+        if (!pathname.startsWith("uploads/") || pathname.includes("..")) {
+          throw new Error("Invalid upload path");
+        }
+        return {
         allowedContentTypes: [
           "application/pdf",
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -20,7 +25,8 @@ export async function POST(req: NextRequest) {
         ],
         maximumSizeInBytes: 30 * 1024 * 1024,
         addRandomSuffix: true,
-      }),
+        };
+      },
     });
     return NextResponse.json(result);
   } catch (e) {

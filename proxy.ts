@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE, isAuthConfigured, verifySessionToken } from "@/lib/auth";
 
 // Paths reachable without signing in.
-const PUBLIC_PATHS = ["/login", "/api/login"];
+const PUBLIC_PATHS = [
+  "/login",
+  "/api/login",
+  "/api/passkeys/login/options",
+  "/api/passkeys/login/verify",
+];
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;

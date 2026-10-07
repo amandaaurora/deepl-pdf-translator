@@ -3,6 +3,7 @@
 A private, password-protected site for translating documents with DeepL.
 
 - **One shared password**, no accounts. The login lasts 30 days on each device.
+- **Passkeys**: once signed in, add a passkey for each device and sign in with your fingerprint, face or device PIN instead of the password.
 - **Your DeepL keys stay on the server** (in environment variables). The page shows how much quota each key has left and, on "Automatic", sends each file to whichever key has the most.
 - **Force the source language** (e.g. French) or let DeepL detect it, choose the target language, and save PDFs as Word or PDF.
 - **Large PDFs are split automatically** into the fewest parts DeepL will accept, translated, and joined back into a single file. Because DeepL bills every PDF at a minimum of 50,000 characters, the page shows the estimated cost before you start.
@@ -25,6 +26,10 @@ A private, password-protected site for translating documents with DeepL.
 4. **Redeploy** (*Deployments → ⋯ → Redeploy*) so the new variables take effect.
 
 If `SITE_PASSWORD` or `SESSION_SECRET` is missing, the site refuses all access rather than being left open.
+
+## Passkeys
+
+Passkeys are tied to the domain they're created on, so add them on the address you normally use (e.g. your custom domain, not the `…vercel.app` one). Their public keys are kept in the Blob store as `auth/passkeys.json`, so the Blob store (step 3 above) is needed. The password always remains as a fallback. To pin the domain explicitly, set `PASSKEY_RP_ID` (e.g. `alihbahasa.caprichos.dev`).
 
 ## Running it locally
 

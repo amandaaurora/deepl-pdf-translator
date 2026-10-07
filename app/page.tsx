@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyInfo, StatusResponse } from "@/lib/types";
 import { Shell } from "@/components/Shell";
+import { PasskeyPanel } from "@/components/PasskeyPanel";
 import type { PdfAnalysis, PlannedChunk } from "@/lib/client/pdf";
 import {
   DEEPL_LIMITS,
@@ -593,6 +594,8 @@ export default function Home() {
           )}
         </div>
       )}
+
+      <PasskeyPanel />
     </Shell>
   );
 }
