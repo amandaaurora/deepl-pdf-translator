@@ -13,7 +13,7 @@ function when(iso?: string) {
 export function PasskeyPanel() {
   const [list, setList] = useState<PasskeySummary[] | null>(null);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
+  const [message, setMessage] = useState("");
   const [supported, setSupported] = useState(false);
 
   const load = useCallback(async () => {
@@ -29,13 +29,13 @@ export function PasskeyPanel() {
 
   const add = async () => {
     setBusy(true);
-    setMessage(null);
+    setMessage("");
     try {
       await addPasskey();
-      setMessage({ text: "Added. Next time, sign in with your fingerprint or face." });
+      setMessage("Added. Next time, sign in with your fingerprint or face.");
       await load();
     } catch (e) {
-      setMessage({ text: e instanceof Error ? e.message : String(e), error: true });
+      setMessage(e instanceof Error ? e.message : String(e));
     }
     setBusy(false);
   };
@@ -47,43 +47,33 @@ export function PasskeyPanel() {
   };
 
   return (
-    <div className="border-b border-line px-5 py-6 md:px-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="micro">Passkeys</p>
-        {supported && (
-          <button onClick={add} disabled={busy} className="pill">
-            {busy ? "Waiting for your device" : "+ Add this device"}
-          </button>
-        )}
-      </div>
+    <section className="w-full">
+      <h2 className="step mb-3">passkeys</h2>
       {list && list.length > 0 ? (
-        <ul className="mt-4 border-t border-line text-sm">
-          {list.map((p, i) => (
-            <li key={p.id} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-line py-2.5">
+        <ul className="border-t border-line">
+          {list.map((p) => (
+            <li key={p.id} className="flex items-baseline justify-between gap-4 border-b border-line py-3 text-left">
               <span>
-                <span className="micro mr-3">{String(i + 1).padStart(2, "0")}</span>
                 {p.name}
-                <span className="text-ink-soft">
-                  {" "}
-                  · added {when(p.createdAt)} · last used {when(p.lastUsedAt)}
+                <span className="block text-sm text-mute">
+                  added {when(p.createdAt)} · last used {when(p.lastUsedAt)}
                 </span>
               </span>
-              <button onClick={() => remove(p)} className="micro link">
-                Remove
+              <button onClick={() => remove(p)} className="lnk text-sm text-mute">
+                remove
               </button>
             </li>
           ))}
         </ul>
       ) : (
-        list && (
-          <p className="mt-3 text-sm text-ink-soft">
-            None yet. Add one to sign in with your fingerprint or face instead of the password.
-          </p>
-        )
+        list && <p className="text-mute">None yet.</p>
       )}
-      {message && (
-        <p className={`mt-3 text-sm ${message.error ? "text-alert" : "text-ink"}`}>{message.text}</p>
+      {supported && (
+        <button onClick={add} disabled={busy} className="lnk mt-4">
+          {busy ? "waiting for your device…" : "add this device"}
+        </button>
       )}
-    </div>
+      {message && <p className="mt-3 text-sm">{message}</p>}
+    </section>
   );
 }

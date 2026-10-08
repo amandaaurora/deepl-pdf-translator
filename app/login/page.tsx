@@ -59,67 +59,49 @@ export default function LoginPage() {
   };
 
   return (
-    <Shell>
-      <div className="grid md:grid-cols-2">
-        <div className="flex flex-col justify-between gap-10 px-5 py-8 md:border-r md:border-line md:px-6 md:py-10">
-          <div>
-            <p className="micro">[ 00 ] Entrance</p>
-            <h1 className="display mt-6">
-              Private
-              <br />
-              access.
-            </h1>
-          </div>
+    <Shell footer="powered by DeepL">
+      <div className="flex w-full max-w-sm flex-col items-center">
+        <p className="step">private</p>
+        <h1 className="big mt-5">enter</h1>
 
-          <div>
-            {passkeys.supported && (
-              <>
-                <button
-                  type="button"
-                  onClick={usePasskey}
-                  disabled={!!busy}
-                  className={`pill ${passkeys.here ? "pill-solid" : ""}`}
-                >
-                  {busy === "passkey" ? "Waiting for your device" : "Sign in with passkey"}
-                </button>
-                <p className="mt-2 text-xs text-ink-soft">
-                  Fingerprint, face or device PIN.
-                </p>
-                <div className="my-7 flex items-center gap-3">
-                  <span className="h-px flex-1 bg-line" />
-                  <span className="micro">or password</span>
-                  <span className="h-px flex-1 bg-line" />
-                </div>
-              </>
-            )}
-            <form onSubmit={submit}>
-              <label className="field">
-                <span className="micro">01 / Password</span>
-                <input
-                  type="password"
-                  autoFocus={!passkeys.here}
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </label>
-              <button
-                type="submit"
-                disabled={!password || !!busy}
-                className={`pill mt-6 ${passkeys.here ? "" : "pill-solid"}`}
-              >
-                {busy === "password" ? "Signing in" : "Enter →"}
-              </button>
-            </form>
-            {error && <p className="mt-4 text-sm text-alert">{error}</p>}
-          </div>
-        </div>
-        <div className="figure figure-idle relative min-h-64 border-t border-line md:border-t-0" aria-hidden>
-          <span className="crosshair" />
-          <span className="corner corner-tl" />
-          <span className="corner corner-br" />
-          <p className="micro absolute bottom-4 left-4 text-ink md:left-5">Fig 00. Study of a closed door</p>
-        </div>
+        {passkeys.supported && (
+          <>
+            <button
+              type="button"
+              onClick={usePasskey}
+              disabled={!!busy}
+              className={passkeys.here ? "act mt-12" : "lnk mt-12 text-lg"}
+            >
+              {busy === "passkey" ? "waiting for your device…" : "Sign in with passkey →"}
+            </button>
+            <p className="mt-3 text-sm text-mute">fingerprint, face or device PIN</p>
+            <p className="step mt-10">or</p>
+          </>
+        )}
+
+        <form onSubmit={submit} className="mt-6 flex w-full flex-col items-center">
+          <label htmlFor="password" className="sr-only">
+            Password
+          </label>
+          <input
+            id="password"
+            type="password"
+            placeholder="password"
+            autoFocus={!passkeys.here}
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="field placeholder:text-mute"
+          />
+          <button
+            type="submit"
+            disabled={!password || !!busy}
+            className={passkeys.here ? "lnk mt-8 text-lg" : "act mt-10"}
+          >
+            {busy === "password" ? "signing in…" : "Enter →"}
+          </button>
+        </form>
+        {error && <p className="mt-6 text-sm">{error}</p>}
       </div>
     </Shell>
   );

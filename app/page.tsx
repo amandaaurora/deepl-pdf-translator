@@ -17,42 +17,40 @@ import {
   waitForTranslation,
 } from "@/lib/client/translate";
 
-const SOURCE_LANGS: [string, string][] = [
-  ["", "Detect automatically"],
-  ["FR", "French"],
-  ["ID", "Indonesian"],
-  ["EN", "English"],
-  ["DE", "German"],
-  ["ES", "Spanish"],
-  ["IT", "Italian"],
-  ["NL", "Dutch"],
-  ["PT", "Portuguese"],
-  ["JA", "Japanese"],
-  ["ZH", "Chinese"],
+// [code, label in the dropdown, label in the sentence]
+const SOURCE_LANGS: [string, string, string][] = [
+  ["", "Any language (detect automatically)", "any language"],
+  ["FR", "French", "French"],
+  ["ID", "Indonesian", "Indonesian"],
+  ["EN", "English", "English"],
+  ["DE", "German", "German"],
+  ["ES", "Spanish", "Spanish"],
+  ["IT", "Italian", "Italian"],
+  ["NL", "Dutch", "Dutch"],
+  ["PT", "Portuguese", "Portuguese"],
+  ["JA", "Japanese", "Japanese"],
+  ["ZH", "Chinese", "Chinese"],
 ];
 
-const TARGET_LANGS: [string, string][] = [
-  ["EN-GB", "English (British)"],
-  ["EN-US", "English (American)"],
-  ["FR", "French"],
-  ["ID", "Indonesian"],
-  ["DE", "German"],
-  ["ES", "Spanish"],
-  ["IT", "Italian"],
-  ["NL", "Dutch"],
-  ["PT-PT", "Portuguese (European)"],
-  ["PT-BR", "Portuguese (Brazilian)"],
-  ["JA", "Japanese"],
-  ["ZH-HANS", "Chinese (simplified)"],
+const TARGET_LANGS: [string, string, string][] = [
+  ["EN-GB", "English (British)", "English (British)"],
+  ["EN-US", "English (American)", "English (American)"],
+  ["FR", "French", "French"],
+  ["ID", "Indonesian", "Indonesian"],
+  ["DE", "German", "German"],
+  ["ES", "Spanish", "Spanish"],
+  ["IT", "Italian", "Italian"],
+  ["NL", "Dutch", "Dutch"],
+  ["PT-PT", "Portuguese (European)", "Portuguese (European)"],
+  ["PT-BR", "Portuguese (Brazilian)", "Portuguese (Brazilian)"],
+  ["JA", "Japanese", "Japanese"],
+  ["ZH-HANS", "Chinese (simplified)", "Chinese (simplified)"],
 ];
 
-const FORMAT_NAMES: Record<string, string> = {
-  docx: "Word document",
-  pdf: "PDF",
-  pptx: "PowerPoint",
-  xlsx: "Excel file",
-  txt: "text file",
-};
+const FORMATS: [string, string, string][] = [
+  ["docx", "Word document (editable)", "Word"],
+  ["pdf", "PDF", "PDF"],
+];
 
 const ACCEPTED = ".pdf,.docx,.pptx,.xlsx,.txt";
 
@@ -64,6 +62,8 @@ type Part = {
   chunk: PlannedChunk;
   keyIndex: number;
   state: string;
+  progress: number; // 0–1
+  secondsLeft?: number;
   billed?: number;
   error?: string;
   done?: boolean;
@@ -94,9 +94,6 @@ function safeBaseName(name: string) {
   );
 }
 
-const langName = (list: [string, string][], code: string) =>
-  list.find(([c]) => c === code)?.[1] ?? code;
-
 function usePref<T>(key: string, initial: T) {
   const [value, setValue] = useState<T>(initial);
   useEffect(() => {
@@ -122,6 +119,33 @@ function usePref<T>(key: string, initial: T) {
   return [value, update] as const;
 }
 
+// An underlined word in the sentence; tapping it opens a native dropdown.
+function Choice({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: [string, string, string][];
+  onChange: (v: string) => void;
+}) {
+  const shown = options.find(([v]) => v === value)?.[2] ?? value;
+  return (
+    <span className="choice">
+      <span aria-hidden>{shown}</span>
+      <select aria-label={label} value={value} onChange={(e) => onChange(e.target.value)}>
+        {options.map(([v, l]) => (
+          <option key={v} value={v}>
+            {l}
+          </option>
+        ))}
+      </select>
+    </span>
+  );
+}
+
 export default function Home() {
   const [view, setView] = useState<"main" | "account">("main");
   const [status, setStatus] = useState<StatusResponse | null>(null);
@@ -132,7 +156,6 @@ export default function Home() {
   const [sourceLang, setSourceLang] = usePref("sourceLang", "");
   const [targetLang, setTargetLang] = usePref("targetLang", "EN-GB");
   const [outputFormat, setOutputFormat] = usePref("outputFormat", "docx");
-  const [showOptions, setShowOptions] = useState(false);
 
   const [file, setFile] = useState<File | null>(null);
   const [analysis, setAnalysis] = useState<PdfAnalysis | null>(null);
@@ -223,7 +246,7 @@ export default function Home() {
     setAnalysis(null);
     if (!file || !isPdf) return;
     let cancelled = false;
-    setPlanning("Reading the document…");
+    setPlanning("reading the document");
     import("@/lib/client/pdf")
       .then(({ analysePdf }) => analysePdf(file))
       .then((a) => !cancelled && setAnalysis(a))
@@ -250,7 +273,7 @@ export default function Home() {
       let chunks: PlannedChunk[];
       if (isPdf) {
         if (!analysis) return;
-        setPlanning("Checking the size…");
+        setPlanning("checking the size");
         const { splitPdf } = await import("@/lib/client/pdf");
         chunks = await splitPdf(file, analysis, limits);
       } else {
@@ -326,18 +349,24 @@ export default function Home() {
     setRunning(true);
     setRunError("");
     setFinalFile(null);
-    window.scrollTo({ top: 0, behavior: "smooth" });
 
     const n = plan.chunks.length;
     const initial: Part[] = plan.chunks.map((chunk, i) => ({
-      label: n === 1 ? "Your document" : `Pages ${chunk.firstPage}–${chunk.lastPage}`,
+      label: n === 1 ? "your document" : `pages ${chunk.firstPage}–${chunk.lastPage}`,
       chunk,
       keyIndex: assignment[i].keyIndex,
-      state: "Waiting",
+      state: "waiting",
+      progress: 0,
     }));
     setParts(initial);
     const update = (i: number, patch: Partial<Part>) =>
-      setParts((prev) => prev.map((p, j) => (j === i ? { ...p, ...patch } : p)));
+      setParts((prev) =>
+        prev.map((p, j) =>
+          j === i
+            ? { ...p, ...patch, progress: Math.max(p.progress, patch.progress ?? p.progress) }
+            : p
+        )
+      );
 
     const results = await Promise.all(
       initial.map(async (part, i): Promise<Blob | null> => {
@@ -347,30 +376,39 @@ export default function Home() {
             status.blobEnabled &&
             status.maxRequestBytes !== null &&
             part.chunk.bytes > status.maxRequestBytes;
-          update(i, { state: "Sending" });
+          update(i, { state: "sending" });
           const handle = await startTranslation(
             part.chunk.file,
             filename,
             { keyIndex: part.keyIndex, sourceLang, targetLang, outputFormat: outExt, viaBlob },
-            (pct) => update(i, { state: `Sending · ${Math.round(pct)}%` })
+            (pct) => update(i, { progress: (pct / 100) * 0.15 })
           );
-          update(i, { state: "Waiting in line" });
-          const final = await waitForTranslation(handle, (s) =>
-            update(i, {
-              state:
-                s.status === "translating"
-                  ? `Translating${s.secondsRemaining ? ` · about ${s.secondsRemaining}s left` : ""}`
-                  : s.status === "queued"
-                    ? "Waiting in line"
-                    : "Translated",
-            })
-          );
-          update(i, { state: "Fetching the translation", billed: final.billedCharacters });
+          update(i, { state: "waiting in line", progress: 0.18 });
+          // Progress while DeepL works: measured against its first time estimate.
+          let firstEstimate = 0;
+          let creep = 0.2;
+          const final = await waitForTranslation(handle, (s) => {
+            if (s.status === "translating") {
+              const left = s.secondsRemaining ?? 0;
+              if (left > 0 && !firstEstimate) firstEstimate = left;
+              creep = Math.min(0.9, creep + 0.03);
+              const progress = firstEstimate
+                ? 0.2 + 0.75 * Math.max(0, 1 - left / firstEstimate)
+                : creep;
+              update(i, { state: "translating", progress, secondsLeft: left || undefined });
+            }
+          });
+          update(i, {
+            state: "fetching",
+            progress: 0.97,
+            secondsLeft: undefined,
+            billed: final.billedCharacters,
+          });
           const blob = await downloadTranslation(handle);
-          update(i, { state: "Done", done: true, result: blob });
+          update(i, { state: "done", done: true, progress: 1, result: blob });
           return blob;
         } catch (e) {
-          update(i, { state: "Failed", error: e instanceof Error ? e.message : String(e) });
+          update(i, { state: "failed", error: e instanceof Error ? e.message : String(e) });
           return null;
         }
       })
@@ -440,90 +478,76 @@ export default function Home() {
   const totalCost = plan?.costs.reduce((a, b) => a + b, 0) ?? 0;
   const totalBilled = parts.reduce((a, p) => a + (p.billed ?? 0), 0);
   const shortOfQuota = assignment.some((a) => !a.enough);
-  const step = stage === "drop" ? 1 : stage === "review" ? 2 : 3;
-  const figState =
-    stage === "working" ? "busy" : stage === "failed" || planError ? "error" : stage === "done" ? "done" : "idle";
-  const summary = `${langName(SOURCE_LANGS, sourceLang) === "Detect automatically" ? "Any language" : langName(SOURCE_LANGS, sourceLang)} → ${langName(TARGET_LANGS, targetLang)}`;
+  const overall = parts.length ? parts.reduce((a, p) => a + p.progress, 0) / parts.length : 0;
+  const secondsLeft = Math.max(0, ...parts.map((p) => p.secondsLeft ?? 0));
+  const partsDone = parts.filter((p) => p.done).length;
   const failedParts = parts.filter((p) => p.error);
-  const finishedParts = parts.filter((p) => p.result);
+  const stepText = stage === "drop" ? "1 / 3" : stage === "review" ? "2 / 3" : "3 / 3";
 
-  const options = (
-    <div className="grid gap-5 sm:grid-cols-2">
-      <label className="field sm:col-span-2">
-        <span className="micro">Written in</span>
-        <select value={sourceLang} onChange={(e) => setSourceLang(e.target.value)}>
-          {SOURCE_LANGS.map(([v, l]) => (
-            <option key={v} value={v}>
-              {l}
-            </option>
-          ))}
-        </select>
-        <span className="text-xs leading-relaxed text-ink-soft">
-          Usually best left on automatic. If the document opens in a different language from the
-          rest (say, an English abstract before French text), choose the main language here.
-        </span>
-      </label>
-      <label className="field">
-        <span className="micro">Translate into</span>
-        <select value={targetLang} onChange={(e) => setTargetLang(e.target.value)}>
-          {TARGET_LANGS.map(([v, l]) => (
-            <option key={v} value={v}>
-              {l}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="field">
-        <span className="micro">Save as</span>
-        <select
-          value={isPdf || !file ? outputFormat : extension}
-          disabled={!!file && !isPdf}
-          onChange={(e) => setOutputFormat(e.target.value)}
-        >
-          {file && !isPdf ? (
-            <option value={extension}>Same as the original</option>
-          ) : (
-            <>
-              <option value="docx">Word document (editable)</option>
-              <option value="pdf">PDF</option>
-            </>
-          )}
-        </select>
-      </label>
-    </div>
+  const big = dragging
+    ? "release"
+    : stage === "drop"
+      ? "translate"
+      : stage === "review"
+        ? plan
+          ? "ready"
+          : planError
+            ? "hmm"
+            : "reading"
+        : stage === "working"
+          ? `${Math.round(overall * 100)}%`
+          : stage === "done"
+            ? "done"
+            : "stopped";
+
+  const sentence = (
+    <p className="mt-3 text-base leading-loose text-mute">
+      from <Choice label="Written in" value={sourceLang} options={SOURCE_LANGS} onChange={setSourceLang} /> into{" "}
+      <Choice label="Translate into" value={targetLang} options={TARGET_LANGS} onChange={setTargetLang} />{" "}
+      {file && !isPdf ? (
+        "in the same format"
+      ) : (
+        <>
+          as <Choice label="Save as" value={outputFormat} options={FORMATS} onChange={setOutputFormat} />
+        </>
+      )}
+    </p>
   );
+
+  const banner =
+    offerPasskey && view === "main" && !running ? (
+      <p className="mt-4 text-center text-sm text-mute">
+        {passkeyNote || "Sign in with your fingerprint or face next time?"}{" "}
+        {!passkeyAdded && (
+          <button onClick={setUpPasskey} className="lnk ml-2 text-ink">
+            set it up
+          </button>
+        )}
+        <button onClick={dismissPasskeyOffer} className="lnk ml-4">
+          {passkeyAdded ? "close" : "not now"}
+        </button>
+      </p>
+    ) : null;
 
   return (
     <Shell
-      nav={view === "main" ? <Steps current={step} /> : <span className="micro text-ink">Account</span>}
+      banner={banner}
       actions={
         <button
           onClick={() => setView(view === "main" ? "account" : "main")}
           disabled={running}
-          className="micro link shrink-0"
+          className="lnk text-mute no-underline hover:underline"
         >
-          {view === "main" ? "Account" : "← Back"}
+          {view === "main" ? "account" : "← back"}
         </button>
       }
+      footer={
+        view === "main" && (stage === "drop" || stage === "review") ? (
+          // Only where there's a mouse: phones can't drag files in.
+          <span className="hidden pointer-fine:inline">or drop a file anywhere</span>
+        ) : null
+      }
     >
-      {offerPasskey && view === "main" && !running && (
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-paper px-5 py-3 md:px-6">
-          <p className="text-sm">
-            {passkeyNote || "Skip the password next time: sign in on this device with your fingerprint or face."}
-          </p>
-          <div className="flex gap-4">
-            {!passkeyAdded && (
-              <button onClick={setUpPasskey} className="micro link text-ink">
-                Set it up
-              </button>
-            )}
-            <button onClick={dismissPasskeyOffer} className="micro link">
-              {passkeyAdded ? "Close" : "Not now"}
-            </button>
-          </div>
-        </div>
-      )}
-
       {view === "account" ? (
         <Account
           keys={keys}
@@ -536,250 +560,130 @@ export default function Home() {
           noKeys={!!status && keys.length === 0}
         />
       ) : (
-        <>
-          <div className="grid border-b border-line md:grid-cols-2">
-            {/* Left: what to do now */}
-            <div className="flex flex-col gap-8 px-5 py-8 md:border-r md:border-line md:px-6 md:py-10">
-              {stage === "drop" && (
-                <>
-                  <div>
-                    <p className="micro">[ 01 ] Document</p>
-                    <h1 className="display mt-6">
-                      Drop a
-                      <br />
-                      document.
-                    </h1>
-                  </div>
-                  <div>
-                    <p className="max-w-sm text-sm leading-relaxed text-ink-soft">
-                      A PDF, Word, PowerPoint, Excel or text file. It&apos;s translated into{" "}
-                      <strong className="font-medium text-ink">{langName(TARGET_LANGS, targetLang)}</strong>
-                      {outputFormat === "docx" ? ", and PDFs come back as editable Word documents. " : ". "}
-                      <button onClick={() => setShowOptions(!showOptions)} className="link underline underline-offset-4">
-                        {showOptions ? "Hide options" : "Change"}
-                      </button>
-                    </p>
-                    {showOptions && <div className="mt-6">{options}</div>}
-                    <div className="mt-7 flex flex-wrap items-center gap-4">
-                      <button onClick={pickFile} className="pill pill-solid">
-                        Choose document
-                      </button>
-                      <span className="text-xs text-ink-soft">or drag it anywhere onto this page</span>
-                    </div>
-                  </div>
-                </>
-              )}
+        <div className="flex max-w-3xl flex-col items-center">
+          <p className="step">{stepText}</p>
+          <h1 className="big mt-5" aria-live="polite">
+            {big}
+          </h1>
 
-              {stage === "review" && (
-                <>
-                  <div>
-                    <p className="micro">[ 02 ] Check</p>
-                    <h1 className="mt-5 text-3xl leading-tight font-normal tracking-tight break-all sm:text-4xl">
-                      {file!.name}
-                    </h1>
-                    <p className="mt-2 text-sm text-ink-soft">
-                      {mb(file!.size)}
-                      {analysis &&
-                        ` · ${analysis.pageCount} page${analysis.pageCount === 1 ? "" : "s"}`}
-                      {" · "}
-                      <button onClick={pickFile} className="link underline underline-offset-4">
-                        Choose a different file
-                      </button>
-                    </p>
-                  </div>
-                  {options}
-                  <div className="border-t border-line pt-5 text-sm leading-relaxed">
-                    {planError ? (
-                      <p className="text-alert">{planError}</p>
-                    ) : !plan ? (
-                      <p className="text-ink-soft">{planning || "Checking…"}</p>
-                    ) : (
-                      <>
-                        {plan.chunks.length > 1 && (
-                          <p className="mb-2">
-                            It&apos;s a large file, so it will be sent in {plan.chunks.length} parts and
-                            joined back into one.
-                          </p>
-                        )}
-                        <p>
-                          Uses about <strong className="font-medium">{fmt(totalCost)}</strong> characters
-                          of this month&apos;s allowance.
-                        </p>
-                        {extension !== "txt" && (
-                          <p className="mt-1 text-xs text-ink-soft">
-                            DeepL counts every document as at least 50,000 characters, however short.
-                          </p>
-                        )}
-                        {shortOfQuota && (
-                          <p className="mt-3 text-alert">
-                            There may not be enough allowance left this month for this one.
-                          </p>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </>
-              )}
-
-              {stage === "working" && (
-                <>
-                  <div>
-                    <p className="micro">[ 03 ] Translating</p>
-                    <h1 className="display mt-6">
-                      Working
-                      <br />
-                      on it.
-                    </h1>
-                  </div>
-                  <div>
-                    <p className="text-sm text-ink-soft">
-                      Keep this page open. It usually takes a minute or two.
-                    </p>
-                    <PartList parts={parts} />
-                  </div>
-                </>
-              )}
-
-              {stage === "done" && (
-                <>
-                  <div>
-                    <p className="micro">[ 03 ] Done</p>
-                    <h1 className="display mt-6">Done.</h1>
-                  </div>
-                  <div>
-                    <p className="text-sm leading-relaxed">
-                      <strong className="font-medium break-all">{finalFile!.name}</strong> has been
-                      downloaded.
-                    </p>
-                    {totalBilled > 0 && (
-                      <p className="mt-1 text-xs text-ink-soft">
-                        Used {fmt(totalBilled)} characters of the allowance.
-                      </p>
-                    )}
-                    <div className="mt-7 flex flex-wrap gap-3">
-                      <button onClick={() => saveFile(finalFile!.blob, finalFile!.name)} className="pill pill-solid">
-                        ↓ Download again
-                      </button>
-                      <button onClick={() => chooseFile(null)} className="pill">
-                        Translate another
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {stage === "failed" && (
-                <>
-                  <div>
-                    <p className="micro">[ 03 ] Not translated</p>
-                    <h1 className="display mt-6">
-                      That
-                      <br />
-                      didn&apos;t work.
-                    </h1>
-                  </div>
-                  <div>
-                    <p className="text-sm text-alert">{runError}</p>
-                    {failedParts.map((p, i) => (
-                      <p key={i} className="mt-2 text-xs text-ink-soft">
-                        {parts.length > 1 && `${p.label}: `}
-                        {p.error}
-                      </p>
-                    ))}
-                    {finishedParts.length > 0 && parts.length > 1 && (
-                      <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1">
-                        {parts.map(
-                          (p, i) =>
-                            p.result && (
-                              <button
-                                key={i}
-                                className="micro link text-ink"
-                                onClick={() =>
-                                  saveFile(p.result!, `${baseName}_translated_part${i + 1}of${parts.length}.${outExt}`)
-                                }
-                              >
-                                ↓ {p.label}
-                              </button>
-                            )
-                        )}
-                      </div>
-                    )}
-                    <div className="mt-7 flex flex-wrap gap-3">
-                      <button onClick={translate} className="pill pill-solid">
-                        Try again
-                      </button>
-                      <button onClick={() => chooseFile(null)} className="pill">
-                        Choose a different file
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* Right: the figure, which is also the drop target */}
-            <div
-              role={stage === "drop" || stage === "review" ? "button" : undefined}
-              tabIndex={stage === "drop" || stage === "review" ? 0 : undefined}
-              aria-label={stage === "drop" || stage === "review" ? "Choose a document" : undefined}
-              onClick={() => (stage === "drop" || stage === "review") && pickFile()}
-              onKeyDown={(e) =>
-                (stage === "drop" || stage === "review") && (e.key === "Enter" || e.key === " ") && pickFile()
-              }
-              className={`figure figure-${figState} ${dragging ? "figure-drag" : ""} relative min-h-64 border-t border-line md:min-h-full md:border-t-0 ${
-                stage === "drop" || stage === "review" ? "cursor-pointer" : ""
-              }`}
-            >
-              <span className="crosshair" aria-hidden />
-              <span className="corner corner-tl" aria-hidden />
-              <span className="corner corner-br" aria-hidden />
-              {dragging && (
-                <span className="absolute inset-0 flex items-center justify-center">
-                  <span className="micro bg-white/80 px-3 py-1.5 text-ink">Release to add</span>
-                </span>
-              )}
-              <p className="micro absolute bottom-4 left-4 text-ink md:left-5">
-                {stage === "drop" && "Fig 01. Drop it here"}
-                {stage === "review" && "Fig 02. Ready to translate"}
-                {stage === "working" && "Fig 03. In translation"}
-                {stage === "done" && "Fig 03. Translated"}
-                {stage === "failed" && "Fig 03. Interrupted"}
-              </p>
-            </div>
-          </div>
-
-          {/* The one action, always within reach */}
-          {(stage === "review" || stage === "working") && (
-            <div className="sticky bottom-0 z-10 flex items-center justify-between gap-3 border-t border-b border-line bg-white px-5 py-4 md:px-6">
-              <p className="micro text-ink-soft">
-                {stage === "working" ? (
-                  "Keep this page open"
-                ) : (
-                  <>
-                    <span className="hidden sm:inline">
-                      {summary} · {FORMAT_NAMES[outExt] ?? outExt}
-                      {plan && " · "}
-                    </span>
-                    {plan ? `~${fmt(totalCost)} characters` : "Checking…"}
-                  </>
-                )}
-              </p>
-              <button
-                onClick={translate}
-                disabled={stage === "working" || !plan || keys.length === 0}
-                className="pill pill-solid"
-              >
-                {stage === "working" ? "Translating" : "Translate →"}
-              </button>
-            </div>
+          {stage === "drop" && (
+            <>
+              <p className="mt-6 text-lg">a PDF, Word, PowerPoint, Excel or text file</p>
+              {sentence}
+              <div className="mt-11">
+                <button onClick={pickFile} className="act">
+                  Choose document →
+                </button>
+              </div>
+            </>
           )}
 
-          {keys.length === 0 && status && (
-            <p className="border-b border-line px-5 py-4 text-sm text-alert md:px-6">
-              Translation isn&apos;t set up yet: no DeepL keys are configured.
-            </p>
+          {stage === "review" && (
+            <>
+              <p className="mt-6 text-lg break-all">
+                {file!.name}
+                {analysis && ` — ${analysis.pageCount} page${analysis.pageCount === 1 ? "" : "s"}`}
+                {plan && ` — about ${fmt(totalCost)} characters`}
+              </p>
+              {sentence}
+              {sourceLang === "" && (
+                <p className="mt-2 max-w-md text-sm text-mute">
+                  Mixed languages, like an English abstract before French text? Set “from” to the
+                  main language.
+                </p>
+              )}
+              {planError && <p className="mt-4 max-w-md text-sm">{planError}</p>}
+              {!plan && !planError && <p className="mt-4 text-sm text-mute">{planning}…</p>}
+              {plan && plan.chunks.length > 1 && (
+                <p className="mt-4 text-sm text-mute">
+                  It&apos;s a large file, so it goes in {plan.chunks.length} parts and comes back as one.
+                </p>
+              )}
+              {shortOfQuota && (
+                <p className="mt-4 text-sm font-medium">
+                  There may not be enough allowance left this month for this one.
+                </p>
+              )}
+              {keys.length === 0 && status && (
+                <p className="mt-4 text-sm font-medium">Translation isn&apos;t set up yet.</p>
+              )}
+              <div className="mt-11 flex flex-wrap items-baseline justify-center gap-9">
+                <button onClick={translate} disabled={!plan || keys.length === 0} className="act">
+                  Translate →
+                </button>
+                <button onClick={pickFile} className="lnk text-mute">
+                  replace file
+                </button>
+              </div>
+            </>
           )}
-        </>
+
+          {stage === "working" && (
+            <>
+              <p className="mt-6 text-lg break-all">translating {file!.name}</p>
+              <p className="mt-3 text-mute">
+                {parts.length > 1 && `${partsDone} of ${parts.length} parts done · `}
+                {secondsLeft > 0 ? `about ${secondsLeft}s left` : "this usually takes a minute or two"}
+              </p>
+              <p className="mt-11 text-mute">keep this page open</p>
+            </>
+          )}
+
+          {stage === "done" && (
+            <>
+              <p className="mt-6 text-lg break-all">{finalFile!.name} is in your downloads</p>
+              {totalBilled > 0 && (
+                <p className="mt-3 text-mute">used {fmt(totalBilled)} characters</p>
+              )}
+              <div className="mt-11 flex flex-wrap items-baseline justify-center gap-9">
+                <button onClick={() => chooseFile(null)} className="act">
+                  Translate another →
+                </button>
+                <button onClick={() => saveFile(finalFile!.blob, finalFile!.name)} className="lnk text-mute">
+                  download again
+                </button>
+              </div>
+            </>
+          )}
+
+          {stage === "failed" && (
+            <>
+              <p className="mt-6 max-w-xl text-lg">{runError}</p>
+              {failedParts.map((p, i) => (
+                <p key={i} className="mt-2 max-w-xl text-sm text-mute">
+                  {parts.length > 1 && `${p.label}: `}
+                  {p.error}
+                </p>
+              ))}
+              {parts.length > 1 && parts.some((p) => p.result) && (
+                <p className="mt-4 flex flex-wrap justify-center gap-x-5 text-sm">
+                  {parts.map(
+                    (p, i) =>
+                      p.result && (
+                        <button
+                          key={i}
+                          className="lnk"
+                          onClick={() =>
+                            saveFile(p.result!, `${baseName}_translated_part${i + 1}of${parts.length}.${outExt}`)
+                          }
+                        >
+                          download {p.label}
+                        </button>
+                      )
+                  )}
+                </p>
+              )}
+              <div className="mt-11 flex flex-wrap items-baseline justify-center gap-9">
+                <button onClick={translate} className="act">
+                  Try again →
+                </button>
+                <button onClick={() => chooseFile(null)} className="lnk text-mute">
+                  choose another file
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       )}
 
       <input
@@ -790,46 +694,6 @@ export default function Home() {
         onChange={(e) => e.target.files?.[0] && chooseFile(e.target.files[0])}
       />
     </Shell>
-  );
-}
-
-function Steps({ current }: { current: number }) {
-  const names = ["Document", "Check", "Translate"];
-  return (
-    <>
-      <ol className="hidden items-center gap-3 sm:flex">
-        {names.map((name, i) => (
-          <li key={name} className="flex items-center gap-3">
-            {i > 0 && <span className="h-px w-6 bg-line" aria-hidden />}
-            <span
-              className={`micro ${i + 1 === current ? "text-ink" : ""}`}
-              aria-current={i + 1 === current ? "step" : undefined}
-            >
-              {String(i + 1).padStart(2, "0")} {name}
-            </span>
-          </li>
-        ))}
-      </ol>
-      <span className="micro whitespace-nowrap text-ink sm:hidden">
-        {current}/3 {names[current - 1]}
-      </span>
-    </>
-  );
-}
-
-function PartList({ parts }: { parts: Part[] }) {
-  return (
-    <ul className="mt-4 border-t border-line text-sm">
-      {parts.map((p, i) => (
-        <li key={i} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-line py-2.5">
-          <span>{p.label}</span>
-          <span className={p.error ? "text-alert" : p.done ? "text-ink" : "text-ink-soft"}>
-            {p.done && <span className="mr-1.5 inline-block size-1.5 rounded-full bg-ok align-middle" />}
-            {p.state}
-          </span>
-        </li>
-      ))}
-    </ul>
   );
 }
 
@@ -852,109 +716,71 @@ function Account({
   onSignOut: () => void;
   noKeys: boolean;
 }) {
-  const cells: { choice: KeyChoice; title: string; key?: KeyInfo }[] = [
-    ...(keys.length > 1 ? [{ choice: "auto" as KeyChoice, title: "Automatic" }] : []),
-    ...keys.map((k) => ({ choice: k.index as KeyChoice, title: k.label, key: k })),
+  const rows: { choice: KeyChoice; title: string; detail: string; disabled?: boolean }[] = [
+    ...(keys.length > 1
+      ? [{ choice: "auto" as KeyChoice, title: "automatic", detail: "whichever has the most left" }]
+      : []),
+    ...keys.map((k) => ({
+      choice: k.index as KeyChoice,
+      title: k.label,
+      detail: k.error
+        ? k.error
+        : k.limit !== null
+          ? `${fmt(remaining(k))} left of ${fmt(k.limit)}`
+          : "",
+      disabled: !!k.error,
+    })),
   ];
-  return (
-    <>
-      <div className="flex flex-wrap items-end justify-between gap-4 border-b border-line px-5 py-8 md:px-6">
-        <div>
-          <p className="micro">[ A ] Account</p>
-          <h1 className="display mt-6">Account.</h1>
-        </div>
-        <button onClick={onSignOut} className="pill">
-          Sign out
-        </button>
-      </div>
+  const inUse = (c: KeyChoice) => choice === c || (keys.length === 1 && c !== "auto");
 
-      <div className="border-b border-line">
-        <div className="flex items-center justify-between px-5 pt-5 md:px-6">
-          <p className="micro">Translation allowance</p>
-          <button onClick={onRefresh} disabled={refreshing} className="micro link">
-            {refreshing ? "Refreshing" : "Refresh ↻"}
+  return (
+    <div className="flex w-full max-w-md flex-col items-center">
+      <p className="step">settings</p>
+      <h1 className="big mt-5">account</h1>
+
+      <section className="mt-14 w-full">
+        <div className="mb-3 flex items-baseline justify-between">
+          <h2 className="step">monthly allowance</h2>
+          <button onClick={onRefresh} disabled={refreshing} className="lnk text-sm text-mute">
+            {refreshing ? "refreshing" : "refresh"}
           </button>
         </div>
-        <p className="px-5 pt-2 text-sm text-ink-soft md:px-6">
-          Each DeepL key has its own monthly allowance. Choose which one translations use.
-        </p>
-        {statusError && <p className="px-5 pt-3 text-sm text-alert md:px-6">{statusError}</p>}
+        {statusError && <p className="text-sm">{statusError}</p>}
         {noKeys && (
-          <p className="px-5 pt-3 text-sm text-alert md:px-6">
-            No keys configured. Add DEEPL_API_KEY_1 (and DEEPL_API_KEY_2) in Vercel&apos;s
-            environment variables.
+          <p className="text-sm">
+            No DeepL keys are configured. Add DEEPL_API_KEY_1 and DEEPL_API_KEY_2 in Vercel.
           </p>
         )}
-        <div className="mt-4 grid border-t border-line sm:grid-cols-2 lg:grid-cols-3">
-          {cells.map((c, i) => (
-            <KeyCell
-              key={String(c.choice)}
-              n={i}
-              title={c.title}
-              usage={c.key}
-              checked={choice === c.choice || (keys.length === 1 && c.choice !== "auto")}
-              onSelect={() => onChoose(c.choice)}
-            />
+        <ul className="border-t border-line">
+          {rows.map((r) => (
+            <li key={String(r.choice)} className="flex items-baseline justify-between gap-4 border-b border-line py-3 text-left">
+              <span>
+                {r.title}
+                <span className="block text-sm text-mute tabular-nums">{r.detail}</span>
+              </span>
+              {inUse(r.choice) ? (
+                <span className="text-sm font-medium">in use</span>
+              ) : (
+                <button
+                  onClick={() => onChoose(r.choice)}
+                  disabled={r.disabled}
+                  className="lnk text-sm text-mute"
+                >
+                  use this
+                </button>
+              )}
+            </li>
           ))}
-        </div>
+        </ul>
+      </section>
+
+      <div className="mt-12 w-full">
+        <PasskeyPanel />
       </div>
 
-      <PasskeyPanel />
-    </>
-  );
-}
-
-function KeyCell({
-  n,
-  title,
-  usage,
-  checked,
-  onSelect,
-}: {
-  n: number;
-  title: string;
-  usage?: KeyInfo;
-  checked: boolean;
-  onSelect: () => void;
-}) {
-  const disabled = !!usage?.error;
-  // Share of the allowance still left, to match the "left of" text.
-  const pct = usage?.limit ? Math.max(0, Math.min(100, (remaining(usage) / usage.limit) * 100)) : 0;
-  const tag = usage ? (usage.plan === "free" ? "Free" : "Pro") : "Mode";
-  return (
-    <label
-      className={`relative block cursor-pointer border-b border-line px-5 py-5 transition-colors sm:border-r md:px-6 ${
-        checked ? "keycell-on" : "hover:bg-paper"
-      } ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
-    >
-      <input
-        type="radio"
-        name="key"
-        checked={checked}
-        disabled={disabled}
-        onChange={onSelect}
-        className="sr-only"
-      />
-      <span className="micro">
-        {String(n).padStart(2, "0")} / {tag}
-        {checked && " · in use"}
-      </span>
-      <span className="mt-1.5 block text-base">{title}</span>
-      {!usage && <span className="mt-1 block text-xs text-ink-soft">Whichever has the most left</span>}
-      {usage?.error && <span className="mt-1 block text-xs text-alert">{usage.error}</span>}
-      {usage && !usage.error && usage.limit !== null && (
-        <>
-          <span className="mt-3 block h-px bg-line">
-            <span
-              className={`block h-px ${pct < 10 ? "bg-alert" : "bg-ink"}`}
-              style={{ width: `${pct}%` }}
-            />
-          </span>
-          <span className="mt-2 block text-xs text-ink-soft tabular-nums">
-            {fmt(remaining(usage))} left of {fmt(usage.limit)}
-          </span>
-        </>
-      )}
-    </label>
+      <button onClick={onSignOut} className="act mt-14">
+        Sign out
+      </button>
+    </div>
   );
 }
