@@ -125,15 +125,17 @@ function Choice({
   value,
   options,
   onChange,
+  emphasis,
 }: {
   label: string;
   value: string;
   options: [string, string, string][];
   onChange: (v: string) => void;
+  emphasis?: boolean;
 }) {
   const shown = options.find(([v]) => v === value)?.[2] ?? value;
   return (
-    <span className="choice">
+    <span className={emphasis ? "choice text-ink" : "choice"}>
       <span aria-hidden>{shown}</span>
       <select aria-label={label} value={value} onChange={(e) => onChange(e.target.value)}>
         {options.map(([v, l]) => (
@@ -477,7 +479,52 @@ export default function Home() {
 
   const totalCost = plan?.costs.reduce((a, b) => a + b, 0) ?? 0;
   const totalBilled = parts.reduce((a, p) => a + (p.billed ?? 0), 0);
-  const shortOfQuota = assignment.some((a) => !a.enough);
+  const keyName = (index: number) =>
+    (keys.find((k) => k.index === index)?.label ?? `Key ${index}`).replace(/ \(…[^)]*\)$/, "");
+
+  // How much each key would have left once this file is translated.
+  const afterByKey = new Map<number, number>();
+  assignment.forEach((a, i) => {
+    const k = keys.find((x) => x.index === a.keyIndex);
+    const start = afterByKey.get(a.keyIndex) ?? (k ? remaining(k) : 0);
+    afterByKey.set(a.keyIndex, start - (plan?.costs[i] ?? 0));
+  });
+
+  const KEY_OPTIONS: [string, string, string][] = [
+    ...(keys.length > 1
+      ? [["auto", "Automatic (whichever has the most left)", "automatic"] as [string, string, string]]
+      : []),
+    ...keys
+      .filter((k) => !k.error)
+      .map((k): [string, string, string] => {
+        const left = remaining(k);
+        const short = plan && left < totalCost ? " (not enough for this file)" : "";
+        return [String(k.index), `${keyName(k.index)} — ${fmt(left)} left${short}`, keyName(k.index)];
+      }),
+  ];
+
+  let keyNote: { text: string; warn: boolean } | null = null;
+  if (keys.length > 0) {
+    if (!plan) {
+      keyNote =
+        effectiveChoice === "auto"
+          ? { text: "uses whichever key has the most left", warn: false }
+          : (() => {
+              const k = keys.find((x) => x.index === effectiveChoice);
+              return { text: `${fmt(k ? remaining(k) : 0)} left on ${keyName(effectiveChoice as number)}`, warn: false };
+            })();
+    } else {
+      const used = [...afterByKey.entries()];
+      const short = used.find(([, after]) => after < 0);
+      if (short) {
+        keyNote = { text: `Not enough left on ${keyName(short[0])} for this file.`, warn: true };
+      } else if (used.length === 1) {
+        keyNote = { text: `${fmt(used[0][1])} left on ${keyName(used[0][0])} after this`, warn: false };
+      } else {
+        keyNote = { text: `shared between ${used.map(([i]) => keyName(i)).join(" and ")}`, warn: false };
+      }
+    }
+  }
   const overall = parts.length ? parts.reduce((a, p) => a + p.progress, 0) / parts.length : 0;
   const secondsLeft = Math.max(0, ...parts.map((p) => p.secondsLeft ?? 0));
   const partsDone = parts.filter((p) => p.done).length;
@@ -511,7 +558,23 @@ export default function Home() {
           as <Choice label="Save as" value={outputFormat} options={FORMATS} onChange={setOutputFormat} />
         </>
       )}
+      {keys.length > 1 && (
+        <>
+          ,<br className="hidden sm:inline" /> charged to{" "}
+          <Choice
+            label="Charge to"
+            value={String(effectiveChoice)}
+            options={KEY_OPTIONS}
+            onChange={(v) => setKeyChoice(v === "auto" ? "auto" : Number(v))}
+            emphasis
+          />
+        </>
+      )}
     </p>
+  );
+
+  const keyLine = keyNote && (
+    <p className={`mt-1 text-sm ${keyNote.warn ? "font-medium text-ink" : "text-mute"}`}>{keyNote.text}</p>
   );
 
   const banner =
@@ -554,8 +617,6 @@ export default function Home() {
           statusError={statusError}
           refreshing={refreshing}
           onRefresh={loadStatus}
-          choice={effectiveChoice}
-          onChoose={setKeyChoice}
           onSignOut={signOut}
           noKeys={!!status && keys.length === 0}
         />
@@ -570,9 +631,10 @@ export default function Home() {
             <>
               <p className="mt-6 text-lg">a PDF, Word, PowerPoint, Excel or text file</p>
               {sentence}
+              {keyLine}
               <div className="mt-11">
-                <button onClick={pickFile} className="act">
-                  Choose document →
+                <button onClick={pickFile} className="btn">
+                  Choose document
                 </button>
               </div>
             </>
@@ -586,6 +648,7 @@ export default function Home() {
                 {plan && ` — about ${fmt(totalCost)} characters`}
               </p>
               {sentence}
+              {keyLine}
               {sourceLang === "" && (
                 <p className="mt-2 max-w-md text-sm text-mute">
                   Mixed languages, like an English abstract before French text? Set “from” to the
@@ -599,17 +662,12 @@ export default function Home() {
                   It&apos;s a large file, so it goes in {plan.chunks.length} parts and comes back as one.
                 </p>
               )}
-              {shortOfQuota && (
-                <p className="mt-4 text-sm font-medium">
-                  There may not be enough allowance left this month for this one.
-                </p>
-              )}
               {keys.length === 0 && status && (
                 <p className="mt-4 text-sm font-medium">Translation isn&apos;t set up yet.</p>
               )}
-              <div className="mt-11 flex flex-wrap items-baseline justify-center gap-9">
-                <button onClick={translate} disabled={!plan || keys.length === 0} className="act">
-                  Translate →
+              <div className="mt-11 flex flex-wrap items-center justify-center gap-x-8 gap-y-4">
+                <button onClick={translate} disabled={!plan || keys.length === 0} className="btn">
+                  Translate
                 </button>
                 <button onClick={pickFile} className="lnk text-mute">
                   replace file
@@ -635,9 +693,9 @@ export default function Home() {
               {totalBilled > 0 && (
                 <p className="mt-3 text-mute">used {fmt(totalBilled)} characters</p>
               )}
-              <div className="mt-11 flex flex-wrap items-baseline justify-center gap-9">
-                <button onClick={() => chooseFile(null)} className="act">
-                  Translate another →
+              <div className="mt-11 flex flex-wrap items-center justify-center gap-x-8 gap-y-4">
+                <button onClick={() => chooseFile(null)} className="btn">
+                  Translate another
                 </button>
                 <button onClick={() => saveFile(finalFile!.blob, finalFile!.name)} className="lnk text-mute">
                   download again
@@ -673,9 +731,9 @@ export default function Home() {
                   )}
                 </p>
               )}
-              <div className="mt-11 flex flex-wrap items-baseline justify-center gap-9">
-                <button onClick={translate} className="act">
-                  Try again →
+              <div className="mt-11 flex flex-wrap items-center justify-center gap-x-8 gap-y-4">
+                <button onClick={translate} className="btn">
+                  Try again
                 </button>
                 <button onClick={() => chooseFile(null)} className="lnk text-mute">
                   choose another file
@@ -702,8 +760,6 @@ function Account({
   statusError,
   refreshing,
   onRefresh,
-  choice,
-  onChoose,
   onSignOut,
   noKeys,
 }: {
@@ -711,28 +767,9 @@ function Account({
   statusError: string;
   refreshing: boolean;
   onRefresh: () => void;
-  choice: KeyChoice;
-  onChoose: (c: KeyChoice) => void;
   onSignOut: () => void;
   noKeys: boolean;
 }) {
-  const rows: { choice: KeyChoice; title: string; detail: string; disabled?: boolean }[] = [
-    ...(keys.length > 1
-      ? [{ choice: "auto" as KeyChoice, title: "automatic", detail: "whichever has the most left" }]
-      : []),
-    ...keys.map((k) => ({
-      choice: k.index as KeyChoice,
-      title: k.label,
-      detail: k.error
-        ? k.error
-        : k.limit !== null
-          ? `${fmt(remaining(k))} left of ${fmt(k.limit)}`
-          : "",
-      disabled: !!k.error,
-    })),
-  ];
-  const inUse = (c: KeyChoice) => choice === c || (keys.length === 1 && c !== "auto");
-
   return (
     <div className="flex w-full max-w-md flex-col items-center">
       <p className="step">settings</p>
@@ -752,33 +789,32 @@ function Account({
           </p>
         )}
         <ul className="border-t border-line">
-          {rows.map((r) => (
-            <li key={String(r.choice)} className="flex items-baseline justify-between gap-4 border-b border-line py-3 text-left">
+          {keys.map((k) => (
+            <li key={k.index} className="flex items-baseline justify-between gap-4 border-b border-line py-3 text-left">
               <span>
-                {r.title}
-                <span className="block text-sm text-mute tabular-nums">{r.detail}</span>
+                {k.label}
+                <span className="block text-sm text-mute tabular-nums">
+                  {k.error
+                    ? k.error
+                    : k.limit !== null
+                      ? `${fmt(remaining(k))} left of ${fmt(k.limit)}`
+                      : ""}
+                </span>
               </span>
-              {inUse(r.choice) ? (
-                <span className="text-sm font-medium">in use</span>
-              ) : (
-                <button
-                  onClick={() => onChoose(r.choice)}
-                  disabled={r.disabled}
-                  className="lnk text-sm text-mute"
-                >
-                  use this
-                </button>
-              )}
+              <span className="text-sm text-mute">{k.plan === "free" ? "free" : "pro"}</span>
             </li>
           ))}
         </ul>
+        <p className="mt-3 text-left text-sm text-mute">
+          Choose which one to charge in the sentence on the main page.
+        </p>
       </section>
 
       <div className="mt-12 w-full">
         <PasskeyPanel />
       </div>
 
-      <button onClick={onSignOut} className="act mt-14">
+      <button onClick={onSignOut} className="btn-line mt-14">
         Sign out
       </button>
     </div>

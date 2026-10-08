@@ -58,49 +58,62 @@ export default function LoginPage() {
     }
   };
 
+  const passwordForm = (
+    <form onSubmit={submit} className="flex w-full flex-col items-center">
+      <label htmlFor="password" className="sr-only">
+        Password
+      </label>
+      <input
+        id="password"
+        type="password"
+        placeholder="password"
+        autoFocus={!passkeys.here}
+        autoComplete="current-password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        className="field placeholder:text-mute"
+      />
+      <button
+        type="submit"
+        disabled={!password || !!busy}
+        className={passkeys.here ? "lnk mt-6 text-mute" : "btn mt-10"}
+      >
+        {busy === "password" ? "signing in…" : passkeys.here ? "enter with password" : "Enter"}
+      </button>
+    </form>
+  );
+
   return (
     <Shell footer="powered by DeepL">
       <div className="flex w-full max-w-sm flex-col items-center">
         <p className="step">private</p>
         <h1 className="big mt-5">enter</h1>
 
-        {passkeys.supported && (
+        {passkeys.here ? (
+          // This device has signed in with a passkey before: lead with it.
           <>
-            <button
-              type="button"
-              onClick={usePasskey}
-              disabled={!!busy}
-              className={passkeys.here ? "act mt-12" : "lnk mt-12 text-lg"}
-            >
-              {busy === "passkey" ? "waiting for your device…" : "Sign in with passkey →"}
+            <button type="button" onClick={usePasskey} disabled={!!busy} className="btn mt-12">
+              {busy === "passkey" ? "Waiting for your device…" : "Sign in with passkey"}
             </button>
             <p className="mt-3 text-sm text-mute">fingerprint, face or device PIN</p>
-            <p className="step mt-10">or</p>
+            <p className="step mt-10 mb-4">or</p>
+            {passwordForm}
+          </>
+        ) : (
+          <>
+            <div className="mt-12 w-full">{passwordForm}</div>
+            {passkeys.supported && (
+              <button
+                type="button"
+                onClick={usePasskey}
+                disabled={!!busy}
+                className="lnk mt-6 text-sm text-mute"
+              >
+                {busy === "passkey" ? "waiting for your device…" : "use a passkey"}
+              </button>
+            )}
           </>
         )}
-
-        <form onSubmit={submit} className="mt-6 flex w-full flex-col items-center">
-          <label htmlFor="password" className="sr-only">
-            Password
-          </label>
-          <input
-            id="password"
-            type="password"
-            placeholder="password"
-            autoFocus={!passkeys.here}
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="field placeholder:text-mute"
-          />
-          <button
-            type="submit"
-            disabled={!password || !!busy}
-            className={passkeys.here ? "lnk mt-8 text-lg" : "act mt-10"}
-          >
-            {busy === "password" ? "signing in…" : "Enter →"}
-          </button>
-        </form>
         {error && <p className="mt-6 text-sm">{error}</p>}
       </div>
     </Shell>
