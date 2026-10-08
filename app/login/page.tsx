@@ -1,16 +1,31 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Shell } from "@/components/Shell";
+import { hasPasskeyHere, passkeysSupported, signInWithPasskey } from "@/lib/client/passkeys";
+
+function goNext() {
+  const next = new URLSearchParams(window.location.search).get("next");
+  window.location.href = next?.startsWith("/") && !next.startsWith("//") ? next : "/";
+}
 
 export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<"" | "password" | "passkey">("");
+  const [passkeys, setPasskeys] = useState<{ supported: boolean; here: boolean }>({
+    supported: false,
+    here: false,
+  });
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPasskeys({ supported: passkeysSupported(), here: hasPasskeyHere() });
+  }, []);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setBusy(true);
+    setBusy("password");
     setError("");
     const res = await fetch("/api/login", {
       method: "POST",
@@ -18,22 +33,35 @@ export default function LoginPage() {
       body: JSON.stringify({ password }),
     }).catch(() => null);
     if (res?.ok) {
-      const next = new URLSearchParams(window.location.search).get("next");
-      window.location.href = next?.startsWith("/") && !next.startsWith("//") ? next : "/";
-      return;
+      // Lets the main page offer to set up a passkey on this device.
+      try {
+        sessionStorage.setItem("offerPasskey", "1");
+      } catch {
+        // ignore
+      }
+      return goNext();
     }
     const data = await res?.json().catch(() => null);
     setError(data?.error || "Couldn't sign in");
-    setBusy(false);
+    setBusy("");
+  };
+
+  const usePasskey = async () => {
+    setBusy("passkey");
+    setError("");
+    try {
+      await signInWithPasskey();
+      goNext();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setBusy("");
+    }
   };
 
   return (
     <Shell>
       <div className="grid md:grid-cols-2">
-        <form
-          onSubmit={submit}
-          className="flex flex-col justify-between gap-10 px-5 py-8 md:border-r md:border-line md:px-6 md:py-10"
-        >
+        <div className="flex flex-col justify-between gap-10 px-5 py-8 md:border-r md:border-line md:px-6 md:py-10">
           <div>
             <p className="micro">[ 00 ] Entrance</p>
             <h1 className="display mt-6">
@@ -42,23 +70,50 @@ export default function LoginPage() {
               access.
             </h1>
           </div>
+
           <div>
-            <label className="field">
-              <span className="micro">01 / Password</span>
-              <input
-                type="password"
-                autoFocus
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </label>
-            {error && <p className="mt-3 text-sm text-alert">{error}</p>}
-            <button type="submit" disabled={!password || busy} className="pill pill-solid mt-6">
-              {busy ? "Signing in" : "Enter →"}
-            </button>
+            {passkeys.supported && (
+              <>
+                <button
+                  type="button"
+                  onClick={usePasskey}
+                  disabled={!!busy}
+                  className={`pill ${passkeys.here ? "pill-solid" : ""}`}
+                >
+                  {busy === "passkey" ? "Waiting for your device" : "Sign in with passkey"}
+                </button>
+                <p className="mt-2 text-xs text-ink-soft">
+                  Fingerprint, face or device PIN.
+                </p>
+                <div className="my-7 flex items-center gap-3">
+                  <span className="h-px flex-1 bg-line" />
+                  <span className="micro">or password</span>
+                  <span className="h-px flex-1 bg-line" />
+                </div>
+              </>
+            )}
+            <form onSubmit={submit}>
+              <label className="field">
+                <span className="micro">01 / Password</span>
+                <input
+                  type="password"
+                  autoFocus={!passkeys.here}
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </label>
+              <button
+                type="submit"
+                disabled={!password || !!busy}
+                className={`pill mt-6 ${passkeys.here ? "" : "pill-solid"}`}
+              >
+                {busy === "password" ? "Signing in" : "Enter →"}
+              </button>
+            </form>
+            {error && <p className="mt-4 text-sm text-alert">{error}</p>}
           </div>
-        </form>
+        </div>
         <div className="figure figure-idle relative min-h-64 border-t border-line md:border-t-0" aria-hidden>
           <span className="crosshair" />
           <span className="corner corner-tl" />

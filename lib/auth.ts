@@ -80,3 +80,22 @@ export async function verifySessionToken(token: string | undefined): Promise<boo
   const expected = await sign(expiry, secrets);
   return timingSafeEqual(encoder.encode(signature), encoder.encode(expected));
 }
+
+// Short-lived signed values (used for passkey challenges): "<value>.<expiry>.<sig>".
+export async function signValue(value: string, ttlSeconds: number): Promise<string> {
+  const secrets = getSecrets();
+  if (!secrets) throw new Error("Authentication is not configured");
+  const expiry = Math.floor(Date.now() / 1000) + ttlSeconds;
+  const sig = toBase64Url(await hmac(secrets.secret, `value|${value}|${expiry}`));
+  return `${value}.${expiry}.${sig}`;
+}
+
+export async function readSignedValue(token: string | undefined): Promise<string | null> {
+  const secrets = getSecrets();
+  if (!secrets || !token) return null;
+  const [value, expiryStr, sig] = token.split(".");
+  const expiry = Number(expiryStr);
+  if (!value || !sig || !Number.isFinite(expiry) || expiry < Date.now() / 1000) return null;
+  const expected = toBase64Url(await hmac(secrets.secret, `value|${value}|${expiry}`));
+  return timingSafeEqual(encoder.encode(sig), encoder.encode(expected)) ? value : null;
+}
