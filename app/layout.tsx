@@ -1,8 +1,12 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Hanken_Grotesk } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
+const hanken = Hanken_Grotesk({
+  subsets: ["latin"],
+  weight: ["200", "400", "500"],
+  variable: "--font-hanken",
+});
 
 export const metadata: Metadata = {
   title: "Alih Bahasa",
@@ -19,7 +23,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en-GB" className={inter.variable}>
+    <html lang="en-GB" className={hanken.variable}>
       <body>{children}</body>
     </html>
   );

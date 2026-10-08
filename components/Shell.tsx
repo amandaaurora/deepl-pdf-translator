@@ -1,44 +1,29 @@
 "use client";
 
-// The page frame: blueprint grid background, caption, header bar and footer.
+// The page frame: name and one link along the top, a centred column for the
+// content, and a quiet line at the bottom.
 export function Shell({
   children,
-  nav,
   actions,
+  banner,
+  footer,
 }: {
   children: React.ReactNode;
-  nav?: React.ReactNode;
   actions?: React.ReactNode;
+  banner?: React.ReactNode;
+  footer?: React.ReactNode;
 }) {
   return (
-    <div className="blueprint min-h-screen px-3 py-8 sm:px-6 md:py-14">
-      <div className="mx-auto max-w-5xl">
-        <div className="mb-6 px-1 sm:mb-8">
-          <p className="caption">Alih bahasa / Document translation</p>
-          <p className="caption text-ink-faint">Private studio · Powered by DeepL</p>
-        </div>
-        <div className="frame">
-          <header className="flex items-center justify-between gap-4 border-b border-line px-5 py-5 md:px-6">
-            <span className="brand shrink-0">Alih Bahasa</span>
-            {nav}
-            {actions ?? <span className="micro">EN / FR / ID</span>}
-          </header>
-          {children}
-          <footer className="flex items-center justify-between border-t-2 border-ink px-5 py-4 md:px-6">
-            <span className="micro">© Alih Bahasa {new Date().getFullYear()}</span>
-            <a
-              href="#"
-              className="micro link"
-              onClick={(e) => {
-                e.preventDefault();
-                window.scrollTo({ top: 0, behavior: "smooth" });
-              }}
-            >
-              Back to top ↑
-            </a>
-          </footer>
-        </div>
-      </div>
+    <div className="flex min-h-dvh flex-col px-6 py-6 sm:px-12 sm:py-10">
+      <header className="flex items-baseline justify-between gap-4 text-sm">
+        <span className="font-medium">alih bahasa</span>
+        {actions}
+      </header>
+      {banner}
+      <main className="flex flex-1 flex-col items-center justify-center py-14 text-center">
+        {children}
+      </main>
+      <footer className="min-h-4 text-center text-xs tracking-[0.2em] text-mute">{footer}</footer>
     </div>
   );
 }
