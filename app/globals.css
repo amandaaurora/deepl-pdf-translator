@@ -32,19 +32,19 @@ body {
     @apply text-[13px] tracking-[0.3em] text-mute;
   }
 
-  /* The main action: a heavier underlined line of text. */
-  .act {
-    @apply cursor-pointer border-b-[1.5px] border-ink pb-1.5 text-xl font-medium transition-[border-width] hover:border-b-[3px] disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:border-b-[1.5px];
+  /* The main action: a solid black button. */
+  .btn {
+    @apply inline-flex cursor-pointer items-center justify-center rounded-full border border-ink bg-ink px-10 py-3.5 text-[17px] font-medium text-white transition-colors hover:bg-[#262626] disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-ink;
+  }
+
+  /* A secondary button that still needs to look like one (e.g. sign out). */
+  .btn-line {
+    @apply inline-flex cursor-pointer items-center justify-center rounded-full border border-ink bg-white px-8 py-3 text-base font-medium text-ink transition-colors hover:bg-[#f4f4f4] disabled:cursor-not-allowed disabled:opacity-30;
   }
 
   /* Secondary actions and links. */
   .lnk {
     @apply cursor-pointer underline decoration-1 underline-offset-[5px] hover:decoration-2 disabled:cursor-not-allowed disabled:opacity-40;
-  }
-
-  .act:focus-visible,
-  .lnk:focus-visible {
-    @apply outline-1 outline-offset-4 outline-ink;
   }
 
   /* An underlined word that is really a dropdown laid over it. */
@@ -55,6 +55,14 @@ body {
     @apply absolute inset-0 h-full w-full cursor-pointer appearance-none opacity-0 disabled:cursor-default;
   }
   .choice:focus-within {
+    @apply outline-1 outline-offset-4 outline-ink;
+  }
+
+  .btn:focus-visible,
+  .btn-line:focus-visible {
+    @apply outline-2 outline-offset-3 outline-ink;
+  }
+  .lnk:focus-visible {
     @apply outline-1 outline-offset-4 outline-ink;
   }
 
